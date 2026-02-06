@@ -11,7 +11,7 @@ const app = express();
  * Set CORS_ORIGIN in .env or leave unset to allow localhost:5174 when NODE_ENV is not production
  */
 const corsOrigin = process.env.CORS_ORIGIN
-    || (process.env.NODE_ENV !== "production" ? "http://localhost:5174" : undefined);
+    || (process.env.NODE_ENV !== "production" ? "https://game-store-node-core-147f97uoo-ganesh42shrmas-projects.vercel.app" : undefined);
 app.use(cors({
     origin: corsOrigin || false,
     credentials: true,
