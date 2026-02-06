@@ -30,14 +30,19 @@ npm install
 
 Create a `.env` file in the project root:
 
-| Variable      | Required | Description                    |
-|---------------|----------|--------------------------------|
-| MONGODB_URI   | Yes      | MongoDB connection string      |
-| JWT_SECRET    | Yes      | Secret used to sign JWTs        |
-| PORT          | No       | Server port (default: 5000)    |
-| JWT_EXPIRES_IN| No       | Token expiry (default: 7d)      |
-| LOG_LEVEL     | No       | Winston level (default: info)  |
-| REDIS_URI     | No       | Redis URL for rate limiting    |
+| Variable           | Required | Description                              |
+|--------------------|----------|------------------------------------------|
+| MONGODB_URI        | Yes      | MongoDB connection string                |
+| JWT_SECRET         | Yes      | Secret used to sign JWTs                 |
+| PORT               | No       | Server port (default: 5000)               |
+| JWT_EXPIRES_IN     | No       | Token expiry (default: 7d)               |
+| LOG_LEVEL          | No       | Winston level (default: info)             |
+| REDIS_URI          | No       | Redis URL for rate limiting               |
+| AWS_ACCESS_KEY_ID  | No*      | AWS access key (required for product image uploads) |
+| AWS_SECRET_ACCESS_KEY | No*   | AWS secret key (required for product image uploads) |
+| AWS_REGION         | No       | AWS region (default: us-east-1)           |
+| S3_BUCKET          | No*      | S3 bucket name (required for product image uploads) |
+| S3_PUBLIC_BASE_URL | No       | Base URL for S3 objects (default: https://&lt;bucket&gt;.s3.&lt;region&gt;.amazonaws.com) |
 
 ## Running the application
 

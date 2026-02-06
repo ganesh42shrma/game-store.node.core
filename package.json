@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed:admin": "node scripts/seed-admin.js",
+    "seed:admin": "node src/scripts/seed-admin.js",
+    "seed:games": "node src/scripts/seed-games.js",
     "test:api": "bash scripts/test-apis.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -15,12 +16,15 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.984.0",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "ioredis": "^5.9.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",
+    "multer": "^2.0.2",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   },

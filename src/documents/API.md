@@ -59,6 +59,59 @@ Response headers for rate-limited routes include: `X-RateLimit-Limit`, `X-RateLi
 
 ---
 
+## Pagination
+
+List endpoints support pagination via query parameters. Use these in the frontend to implement page controls, "Load more", or infinite scroll.
+
+### Query parameters
+
+| Parameter | Type   | Default | Description                          |
+|-----------|--------|---------|--------------------------------------|
+| `page`    | number | 1       | Page number (1-based).                |
+| `limit`   | number | 10      | Number of items per page.            |
+
+### Endpoints that support pagination
+
+| Endpoint                 | Pagination params | Meta in response |
+|--------------------------|-------------------|------------------|
+| `GET /api/products`      | `page`, `limit`   | No               |
+| `GET /api/users`         | `page`, `limit`   | No               |
+| `GET /api/orders`        | `page`, `limit`   | Yes              |
+
+- **Products and users:** Response is `{ "success": true, "data": [ ... ] }`. No `total` or `totalPages`. To build "Page 1 of N" you can request a single large page (e.g. `?limit=100`) to get a count, or treat "next" as available when `data.length === limit`.
+- **Orders:** Response includes `meta`: `{ "total", "page", "limit", "totalPages" }` so you can render full pagination (e.g. "Page 1 of 5", next/prev disabled at boundaries).
+
+### Example requests
+
+```
+GET /api/products?page=1&limit=10
+GET /api/products?page=2&limit=10
+GET /api/products?limit=30
+GET /api/orders?page=1&limit=10
+```
+
+### Example response with meta (orders only)
+
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "meta": {
+    "total": 25,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
+  }
+}
+```
+
+### Frontend usage
+
+- **Products / users:** Use `page` and `limit` in the URL. For "Next" button: if `data.length === limit`, there may be a next page; request `page + 1`. For "Previous": if `page > 1`, request `page - 1`. To show all items in one list, use a large `limit` (e.g. `limit=100`).
+- **Orders:** Use `meta.total`, `meta.page`, `meta.limit`, and `meta.totalPages` to render page numbers and disable next/prev when `page === 1` or `page === totalPages`.
+
+---
+
 ## Health
 
 | Method | Path      | Auth | Description   |
@@ -367,6 +420,47 @@ Base path: `/api/products`
 ```
 
 **Error (404)** – Product not found.
+
+---
+
+### Upload product image
+
+| Method | Path                       | Auth | Roles        |
+|--------|----------------------------|------|--------------|
+| POST   | `/api/products/:id/image` | Yes  | admin, manager |
+
+Upload a cover image for the product. Request must be **multipart/form-data** with a single file in the field **`image`**.
+
+**Allowed types:** image/jpeg, image/png, image/gif, image/webp  
+**Max size:** 5MB
+
+**Example (curl)**
+
+```bash
+curl -X POST "http://localhost:5000/api/products/<productId>/image" \
+  -H "Authorization: Bearer <token>" \
+  -F "image=@/path/to/cover.jpg"
+```
+
+**Response (200)** – Updated product (including `coverImage` URL).
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "<productId>",
+    "title": "Test Game",
+    "coverImage": "https://<bucket>.s3.<region>.amazonaws.com/products/<productId>/cover-1234567890.jpg",
+    ...
+  }
+}
+```
+
+**Error (400)** – No file, wrong field name, invalid type, or file too large.
+
+**Error (404)** – Product not found.
+
+**Error (503)** – S3 not configured (missing AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, or S3_BUCKET).
 
 ---
 
@@ -784,6 +878,7 @@ Returns the order only if it belongs to the authenticated user.
 | POST | `/api/products` | Yes (admin/manager) | Products |
 | PATCH | `/api/products/:id` | Yes (admin/manager) | Products |
 | DELETE | `/api/products/:id` | Yes (admin/manager) | Products |
+| POST | `/api/products/:id/image` | Yes (admin/manager) | Products |
 | GET | `/api/users` | No | Users |
 | GET | `/api/users/:id` | Yes (admin) | Users |
 | POST | `/api/users` | Yes (admin/user) | Users |

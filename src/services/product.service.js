@@ -32,10 +32,10 @@ async function getAllProducts(queryParams) {
         query = query.select(projection);
     }
     if (sort) {
-        const sortBy = sort.split(",").join(" ");
+        const sortBy = sort.split(",").join(" ") + " _id";
         query = query.sort(sortBy);
     } else {
-        query = query.sort("-createdAt");
+        query = query.sort("-createdAt _id");
     }
     const skip = (Number(page) - 1) * Number(limit);
     query = query.skip(skip).limit(Number(limit));
@@ -65,10 +65,20 @@ async function deleteProduct(productId) {
     return Product.findByIdAndDelete(productId);
 }
 
+//update product cover image URL
+async function updateProductCoverImage(productId, coverImageUrl) {
+    return Product.findByIdAndUpdate(
+        productId,
+        { coverImage: coverImageUrl },
+        { new: true, runValidators: true }
+    );
+}
+
 module.exports = {
     getAllProducts,
     getProductById,
     createProduct,
     updateProduct,
     deleteProduct,
+    updateProductCoverImage,
 };

@@ -14,10 +14,10 @@ async function getAllUsers(queryParams) {
         query = query.select(projection);
     }
     if (sort) {
-        const sortBy = sort.split(",").join(" ");
+        const sortBy = sort.split(",").join(" ") + " _id";
         query = query.sort(sortBy);
     } else {
-        query = query.sort("-createdAt");
+        query = query.sort("-createdAt _id");
     }
     const skip = (Number(page) - 1) * Number(limit);
     query = query.skip(skip).limit(Number(limit));

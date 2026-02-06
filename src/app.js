@@ -1,9 +1,21 @@
 const express = require("express");
+const cors = require("cors");
 const routes = require("./routes");
 const requestLogger = require("./middlewares/requestLogger.middleware");
 const rateLimit = require("./middlewares/rateLimit.middleware");
 const logger = require("./config/logger");
 const app = express();
+
+/**
+ * CORS: allow frontend origin in development (e.g. http://localhost:5174)
+ * Set CORS_ORIGIN in .env or leave unset to allow localhost:5174 when NODE_ENV is not production
+ */
+const corsOrigin = process.env.CORS_ORIGIN
+    || (process.env.NODE_ENV !== "production" ? "http://localhost:5174" : undefined);
+app.use(cors({
+    origin: corsOrigin || false,
+    credentials: true,
+}));
 
 /**
  * Global middleware

@@ -1,5 +1,8 @@
 const mongoose = require("mongoose");
 
+const DEFAULT_COVER_IMAGE_URL =
+    "https://developer-s3-mh-dev.s3.ap-south-1.amazonaws.com/default-gamr.avif";
+
 const productSchema = new mongoose.Schema(
     {
         title: {
@@ -39,6 +42,7 @@ const productSchema = new mongoose.Schema(
         },
         coverImage: {
             type: String,
+            default: DEFAULT_COVER_IMAGE_URL,
         },
         releaseDate: {
             type: Date,
@@ -50,7 +54,14 @@ const productSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: {
+            transform(doc, ret) {
+                ret.coverImage = ret.coverImage || DEFAULT_COVER_IMAGE_URL;
+                return ret;
+            },
+        },
     }
 );
 
 module.exports = mongoose.model("Product", productSchema);
+module.exports.DEFAULT_COVER_IMAGE_URL = DEFAULT_COVER_IMAGE_URL;
