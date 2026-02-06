@@ -278,6 +278,7 @@ Base path: `/api/products`
       "rating": 0,
       "coverImage": null,
       "releaseDate": null,
+      "youtubeLinks": [],
       "isActive": true,
       "createdAt": "2026-02-04T12:09:35.058Z",
       "updatedAt": "2026-02-04T13:26:29.900Z"
@@ -285,6 +286,8 @@ Base path: `/api/products`
   ]
 }
 ```
+
+Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://www.youtube.com/watch?v=...`, `https://youtu.be/...`).
 
 ---
 
@@ -336,14 +339,15 @@ Base path: `/api/products`
 
 **Request body**
 
-| Field       | Type   | Required | Rules                          |
-|-------------|--------|----------|--------------------------------|
-| title       | string | Yes      | Non-empty                      |
-| description | string | Yes      | Non-empty                      |
-| price       | number | Yes      | > 0                            |
-| platform    | string | Yes      | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
-| genre       | string | Yes      | Non-empty                      |
-| stock       | number | No       | Int ≥ 0                        |
+| Field        | Type     | Required | Rules                          |
+|--------------|----------|----------|--------------------------------|
+| title        | string   | Yes      | Non-empty                      |
+| description  | string   | Yes      | Non-empty                      |
+| price        | number   | Yes      | > 0                            |
+| platform     | string   | Yes      | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
+| genre        | string   | Yes      | Non-empty                      |
+| stock        | number   | No       | Int ≥ 0                        |
+| youtubeLinks | string[] | No       | 0–3 YouTube URLs               |
 
 **Example**
 
@@ -354,7 +358,8 @@ Base path: `/api/products`
   "price": 19.99,
   "platform": "PC",
   "genre": "RPG",
-  "stock": 10
+  "stock": 10,
+  "youtubeLinks": ["https://www.youtube.com/watch?v=xxx", "https://youtu.be/yyy"]
 }
 ```
 
@@ -389,16 +394,17 @@ Base path: `/api/products`
 
 **Request body** – all fields optional
 
-| Field       | Type   | Rules                          |
-|-------------|--------|---------------------------------|
-| title       | string | Non-empty                       |
-| description | string | Non-empty                       |
-| price       | number | > 0                             |
-| platform    | string | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
-| genre       | string | Non-empty                       |
-| stock       | number | Int ≥ 0                         |
+| Field        | Type     | Rules                          |
+|--------------|----------|---------------------------------|
+| title        | string   | Non-empty                       |
+| description  | string   | Non-empty                       |
+| price        | number   | > 0                             |
+| platform     | string   | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
+| genre        | string   | Non-empty                       |
+| stock        | number   | Int ≥ 0                         |
+| youtubeLinks | string[] | 0–3 YouTube URLs (omit to leave unchanged) |
 
-**Response (200)** – updated product object (same shape as create).
+**Response (200)** – updated product object (same shape as create; includes `youtubeLinks` array).
 
 **Error (404)** – Product not found.
 

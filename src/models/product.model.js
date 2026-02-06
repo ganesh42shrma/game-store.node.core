@@ -44,6 +44,16 @@ const productSchema = new mongoose.Schema(
             type: String,
             default: DEFAULT_COVER_IMAGE_URL,
         },
+        youtubeLinks: {
+            type: [String],
+            default: [],
+            validate: {
+                validator(v) {
+                    return v.length <= 3;
+                },
+                message: "At most 3 YouTube links allowed",
+            },
+        },
         releaseDate: {
             type: Date,
         },
@@ -57,6 +67,7 @@ const productSchema = new mongoose.Schema(
         toJSON: {
             transform(doc, ret) {
                 ret.coverImage = ret.coverImage || DEFAULT_COVER_IMAGE_URL;
+                ret.youtubeLinks = Array.isArray(ret.youtubeLinks) ? ret.youtubeLinks : [];
                 return ret;
             },
         },

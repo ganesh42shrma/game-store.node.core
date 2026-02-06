@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "seed:admin": "node src/scripts/seed-admin.js",
     "seed:games": "node src/scripts/seed-games.js",
+    "update:descriptions": "node src/scripts/update-product-descriptions.js",
     "test:api": "bash scripts/test-apis.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
