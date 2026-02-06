@@ -3,8 +3,8 @@
  * Uses .env for MONGODB_URI.
  */
 require("dotenv").config();
-const { connectDB } = require("../src/config/db");
-const User = require("../src/models/user.model");
+const { connectDB } = require("../config/db");
+const User = require("../models/user.model");
 const bcrypt = require("bcrypt");
 
 const ADMIN_EMAIL = "admin@gamestore.com";
