@@ -13,7 +13,9 @@ const app = express();
  */
 function getAllowedOrigins() {
     if (process.env.CORS_ORIGIN) {
-        return process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean);
+        return process.env.CORS_ORIGIN.split(",")
+            .map((s) => s.trim().replace(/\/+$/, ""))
+            .filter(Boolean);
     }
     if (process.env.NODE_ENV !== "production") {
         return ["http://localhost:5174"];
