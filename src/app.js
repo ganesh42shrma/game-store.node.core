@@ -7,13 +7,27 @@ const logger = require("./config/logger");
 const app = express();
 
 /**
- * CORS: allow frontend origin in development (e.g. http://localhost:5174)
- * Set CORS_ORIGIN in .env or leave unset to allow localhost:5174 when NODE_ENV is not production
+ * CORS: allow frontend origin(s).
+ * - Set CORS_ORIGIN in .env (e.g. https://your-frontend.vercel.app or comma-separated for multiple).
+ * - In development, defaults to http://localhost:5174 when CORS_ORIGIN is unset.
  */
-const corsOrigin = process.env.CORS_ORIGIN
-    || (process.env.NODE_ENV !== "production" ? "https://game-store-node-core-147f97uoo-ganesh42shrmas-projects.vercel.app" : undefined);
+function getAllowedOrigins() {
+    if (process.env.CORS_ORIGIN) {
+        return process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    if (process.env.NODE_ENV !== "production") {
+        return ["http://localhost:5174"];
+    }
+    return [];
+}
+const allowedOrigins = getAllowedOrigins();
 app.use(cors({
-    origin: corsOrigin || false,
+    origin: (origin, cb) => {
+        if (allowedOrigins.length === 0) return cb(null, false);
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin)) return cb(null, origin);
+        cb(null, false);
+    },
     credentials: true,
 }));
 
