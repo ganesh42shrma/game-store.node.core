@@ -41,6 +41,14 @@ async function updateUser(id, updateData) {
     }).select("-password");
 }
 
+async function updateUserProfilePicture(userId, profilePictureUrl) {
+    return User.findByIdAndUpdate(
+        userId,
+        { $set: { profilePicture: profilePictureUrl } },
+        { new: true }
+    ).select("-password");
+}
+
 async function deleteUser(userId) {
     return User.findByIdAndDelete(userId);
 }
@@ -50,5 +58,6 @@ module.exports = {
     getUserById,
     createUser,
     updateUser,
+    updateUserProfilePicture,
     deleteUser,
 };

@@ -2,11 +2,21 @@ const orderService = require("../services/order.service");
 
 async function createOrder(req, res, next) {
     try {
-        const result = await orderService.createOrderFromCart(req.user.id);
+        const addressId = req.body?.addressId || null;
+        const result = await orderService.createOrderFromCart(
+            req.user.id,
+            addressId
+        );
         if (result.code === "EMPTY_CART") {
             return res.status(400).json({
                 success: false,
                 message: "Cart is empty",
+            });
+        }
+        if (result.code === "ADDRESS_NOT_FOUND") {
+            return res.status(400).json({
+                success: false,
+                message: "Address not found",
             });
         }
         if (result.code === "NO_VALID_ITEMS") {

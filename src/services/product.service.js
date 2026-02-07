@@ -1,5 +1,9 @@
 const Product = require("../models/product.model");
 
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 //get all products
 async function getAllProducts(queryParams) {
     const {
@@ -7,6 +11,8 @@ async function getAllProducts(queryParams) {
         genre,
         minPrice,
         maxPrice,
+        search,
+        q,
         fields,
         sort,
         page = 1,
@@ -24,6 +30,16 @@ async function getAllProducts(queryParams) {
         filter.price = {};
         if (minPrice) filter.price.$gte = Number(minPrice);
         if (maxPrice) filter.price.$lte = Number(maxPrice);
+    }
+    const searchTerm = search || q;
+    if (searchTerm && typeof searchTerm === "string" && searchTerm.trim()) {
+        const escaped = escapeRegex(searchTerm.trim());
+        const regex = new RegExp(escaped, "i");
+        filter.$or = [
+            { title: regex },
+            { description: regex },
+            { genre: regex },
+        ];
     }
 
     let query = Product.find(filter);

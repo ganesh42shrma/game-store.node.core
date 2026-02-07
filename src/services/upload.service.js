@@ -52,9 +52,23 @@ function productImageKey(productId, originalName) {
     return `products/${productId}/cover-${Date.now()}.${safeExt}`;
 }
 
+/**
+ * Generate S3 key for a user profile picture.
+ * @param {string} userId - User ID
+ * @param {string} originalName - Original filename (used for extension)
+ */
+function userProfileImageKey(userId, originalName) {
+    const ext = originalName && originalName.includes(".")
+        ? originalName.split(".").pop().toLowerCase()
+        : "jpg";
+    const safeExt = ["jpeg", "jpg", "png", "gif", "webp"].includes(ext) ? ext : "jpg";
+    return `users/${userId}/profile-${Date.now()}.${safeExt}`;
+}
+
 module.exports = {
     uploadToS3,
     productImageKey,
+    userProfileImageKey,
     getAllowedMimes,
     getMaxSizeBytes,
 };

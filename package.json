@@ -10,6 +10,8 @@
     "seed:games": "node src/scripts/seed-games.js",
     "update:descriptions": "node src/scripts/update-product-descriptions.js",
     "test:api": "bash scripts/test-apis.sh",
+    "test:full-flow": "node src/scripts/test-full-flow.js",
+    "test:full-flow:user": "TEST_USER_EMAIL=ganesh@gamestore.com TEST_USER_PASSWORD=ganu1234 node src/scripts/test-full-flow.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
