@@ -26,6 +26,7 @@ const cartSchema = new mongoose.Schema(
             unique: true,
         },
         items: [cartItemSchema],
+        lastAbandonmentEmailSentAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

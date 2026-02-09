@@ -1,6 +1,9 @@
 const Payment = require("../models/payment.model");
 const Order = require("../models/order.model");
+const User = require("../models/user.model");
 const invoiceService = require("./invoice.service");
+const recentPurchaseEvents = require("./recentPurchaseEvents");
+const mailer = require("./mailer.service");
 
 async function createPaymentForOrder(orderId, userId, method = null) {
     const order = await Order.findOne({ _id: orderId, user: userId });
@@ -71,9 +74,35 @@ async function confirmPayment(paymentId, userId) {
         status: "completed",
     });
 
-    const order = await Order.findById(payment.order).lean();
+    const order = await Order.findById(payment.order).populate("user", "name email").lean();
     if (order) {
-        await invoiceService.createInvoiceFromOrder(order);
+        const invoice = await invoiceService.createInvoiceFromOrder(order);
+        // Email: purchase confirmation with invoice
+        const user = await User.findById(order.user).select("email name").lean();
+        if (user?.email) {
+            mailer.sendPurchaseWithInvoice({
+                to: user.email,
+                userName: user.name || "Customer",
+                invoiceNumber: invoice.invoiceNumber,
+                orderId: String(order._id),
+                items: invoice.items || [],
+                subTotal: invoice.subTotal,
+                gstRate: invoice.gstRate,
+                gstAmount: invoice.gstAmount,
+                totalAmount: invoice.totalAmount,
+                issuedAt: invoice.issuedAt,
+            });
+        }
+        // Broadcast for "Someone from X just purchased Y" toast (SSE)
+        const buyerName = order.user?.name?.trim().split(/\s+/)[0] || "Someone";
+        const country = order.billingAddress?.country || "Unknown";
+        const productTitles = (order.items || []).map((i) => i.title).filter(Boolean);
+        recentPurchaseEvents.addRecentPurchase({
+            buyerName,
+            country,
+            productTitles,
+            orderId: String(order._id),
+        });
     }
 
     const populated = await Payment.findById(payment._id).populate({

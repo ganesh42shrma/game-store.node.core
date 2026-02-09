@@ -2,8 +2,25 @@ const winston = require("winston");
 
 const { combine, timestamp, printf, colorize } = winston.format;
 
-const logFormat = printf(({ level, message, timestamp }) => {
-    return `${timestamp} [${level}]: ${message}`;
+/**
+ * Format metadata (extra keys beside level, message, timestamp, splat) for readable output.
+ */
+function formatMeta(meta) {
+    if (!meta || typeof meta !== "object") return "";
+    const { level, message, timestamp, splat, ...rest } = meta;
+    if (Object.keys(rest).length === 0) return "";
+    try {
+        return " " + JSON.stringify(rest);
+    } catch {
+        return " " + String(rest);
+    }
+}
+
+const logFormat = printf((info) => {
+    const meta = formatMeta(info);
+    const msg = info.message || "";
+    const errStack = info.stack ? "\n" + info.stack : "";
+    return `${info.timestamp} [${info.level}]: ${msg}${meta}${errStack}`;
 });
 
 const logger = winston.createLogger({

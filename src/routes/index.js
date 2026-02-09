@@ -9,12 +9,14 @@ const addressRoutes = require("./address.routes");
 const paymentRoutes = require("./payment.routes");
 const invoiceRoutes = require("./invoice.routes");
 const adminRoutes = require("./admin.routes");
+const eventsRoutes = require("./events.routes");
 
 const router = express.Router();
 
 /**
  * Module Routes
  */
+router.use("/events", eventsRoutes);
 router.use("/products", productRoutes);
 router.use("/users", userRoutes);
 router.use("/auth", authRoutes);

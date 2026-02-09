@@ -8,10 +8,13 @@
     "dev": "nodemon src/server.js",
     "seed:admin": "node src/scripts/seed-admin.js",
     "seed:games": "node src/scripts/seed-games.js",
+    "seed:users-reviews": "node src/scripts/seed-users-and-reviews.js",
     "update:descriptions": "node src/scripts/update-product-descriptions.js",
+    "sale:put": "node src/scripts/put-some-products-on-sale.js",
     "test:api": "bash scripts/test-apis.sh",
     "test:full-flow": "node src/scripts/test-full-flow.js",
     "test:full-flow:user": "TEST_USER_EMAIL=ganesh@gamestore.com TEST_USER_PASSWORD=ganu1234 node src/scripts/test-full-flow.js",
+    "email:cart-abandonment": "node src/scripts/run-cart-abandonment-emails.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -20,6 +23,7 @@
   "type": "commonjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.984.0",
+    "@sendgrid/mail": "^8.1.6",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",

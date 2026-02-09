@@ -38,7 +38,10 @@ async function createOrderFromCart(userId, addressId = null) {
         if (!product || !product.isActive) {
             continue;
         }
-        const price = product.price;
+        const price =
+            product.isOnSale && product.discountedPrice != null
+                ? product.discountedPrice
+                : product.price;
         const qty = line.quantity;
         orderItems.push({
             product: product._id,

@@ -134,6 +134,7 @@ Protected routes require the header: `Authorization: Bearer <token>`.
 | **Cart**   | `GET /api/cart`, `POST /api/cart/items`, `PATCH/DELETE /api/cart/items/:productId`, `DELETE /api/cart` |
 | **Orders** | `POST /api/orders` (checkout with optional addressId, GST breakdown), `GET /api/orders`, `GET /api/orders/:id`, `GET /api/orders/:id/invoice` |
 | **Payments (mock)** | `POST /api/payments` (create payment for order), `GET /api/payments/:id`, `POST /api/payments/:id/confirm` (capture → order paid, invoice created) |
+| **Events (SSE)** | `GET /api/events/recent-purchases` (live stream for "Someone from X just purchased Y" toasts) |
 | **Invoices** | `GET /api/invoices/:id` (own), `GET /api/orders/:id/invoice` (invoice for order) |
 | **Admin**  | `GET/PATCH /api/admin/orders`, `GET/PATCH /api/admin/orders/:id`, `GET /api/admin/invoices`, `GET/PATCH /api/admin/invoices/:id` |
 
@@ -169,6 +170,7 @@ src/
 - **Cart:** Add/update/remove items; one cart per user.
 - **Checkout:** Create order from cart with optional addressId; order includes billing address snapshot, **GST breakdown** (subTotal, gstRate, gstAmount, totalAmount), paymentStatus.
 - **Mock payments:** Create payment for order → get mockPaymentUrl → confirm payment (capture) → order marked paid, **invoice created** automatically.
+- **Recent-purchase toasts (SSE):** When a payment is confirmed, the server pushes an event to all clients subscribed to `GET /api/events/recent-purchases`. Frontend can show toasts like "Alex from India purchased Elden Ring" (real-time push, not polling).
 - **Invoices:** User can get invoice by order or by invoice id; admin can list/filter and update invoices.
 - **Admin:** List/update orders (status), list/get/update invoices.
 - **Validation:** Request bodies/params/query validated with Zod; consistent error responses.

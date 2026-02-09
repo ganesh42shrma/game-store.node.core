@@ -39,6 +39,22 @@ const productSchema = new mongoose.Schema(
             required: true,
             min: 0,
         },
+        isOnSale: {
+            type: Boolean,
+            default: false,
+        },
+        discountedPrice: {
+            type: Number,
+            default: null,
+            min: 0,
+            validate: {
+                validator(v) {
+                    if (v == null || v === undefined) return true;
+                    return v < this.price;
+                },
+                message: "Discounted price must be less than actual price",
+            },
+        },
         platform: {
             type: String,
             enum: ["PC", "PS5", "XBOX", "SWITCH"],
@@ -99,6 +115,7 @@ const productSchema = new mongoose.Schema(
                 ret.coverImage = ret.coverImage || DEFAULT_COVER_IMAGE_URL;
                 ret.youtubeLinks = Array.isArray(ret.youtubeLinks) ? ret.youtubeLinks : [];
                 ret.tags = Array.isArray(ret.tags) ? ret.tags : [];
+                ret.discountedPrice = ret.discountedPrice ?? null;
                 return ret;
             },
         },

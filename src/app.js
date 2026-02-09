@@ -19,16 +19,16 @@ function normalizeOrigin(url) {
 }
 
 function getAllowedOrigins() {
-    if (process.env.CORS_ORIGIN) {
-        return process.env.CORS_ORIGIN.split(",")
-            .map((s) => normalizeOrigin(s))
-            .filter(Boolean)
-            .map((s) => (s.startsWith("http://") || s.startsWith("https://") ? s : `https://${s}`));
+    const fromEnv = process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(",")
+              .map((s) => normalizeOrigin(s))
+              .filter(Boolean)
+              .map((s) => (s.startsWith("http://") || s.startsWith("https://") ? s : `https://${s}`))
+        : [];
+    if (process.env.NODE_ENV !== "production" && !fromEnv.includes("http://localhost:5174")) {
+        fromEnv.push("http://localhost:5174");
     }
-    if (process.env.NODE_ENV !== "production") {
-        return ["http://localhost:5174"];
-    }
-    return [];
+    return fromEnv;
 }
 
 // Read on every request (no cache) so Vercel Preview always uses current CORS_ORIGIN

@@ -1,8 +1,10 @@
-const app = require('./app');
 const { loadEnv } = require("./config/env");
 const { connectDB } = require("./config/db");
-//load environment variables and connect to DB
+
+// Load env first so CORS_ORIGIN etc. are available when app runs
 loadEnv();
+
+const app = require("./app");
 connectDB();
 
 const PORT = process.env.PORT || 5000;

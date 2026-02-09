@@ -4,7 +4,7 @@ const Product = require("../models/product.model");
 async function getCartByUserId(userId) {
     const cart = await Cart.findOne({ user: userId }).populate({
         path: "items.product",
-        select: "title price platform coverImage isActive",
+        select: "title price isOnSale discountedPrice platform coverImage isActive",
     });
     if (!cart) {
         return { items: [], user: userId };
@@ -40,6 +40,7 @@ async function addItem(userId, productId, quantity) {
     } else {
         cart.items.push({ product: productId, quantity });
     }
+    cart.lastAbandonmentEmailSentAt = null;
     await cart.save();
     return getCartByUserId(userId);
 }
@@ -62,6 +63,7 @@ async function updateItemQuantity(userId, productId, quantity) {
     } else {
         item.quantity = quantity;
     }
+    cart.lastAbandonmentEmailSentAt = null;
     await cart.save();
     return getCartByUserId(userId);
 }
@@ -74,6 +76,7 @@ async function removeItem(userId, productId) {
     cart.items = cart.items.filter(
         (i) => i.product.toString() !== productId.toString()
     );
+    cart.lastAbandonmentEmailSentAt = null;
     await cart.save();
     return getCartByUserId(userId);
 }
@@ -82,6 +85,7 @@ async function clearCart(userId) {
     const cart = await Cart.findOne({ user: userId });
     if (cart) {
         cart.items = [];
+        cart.lastAbandonmentEmailSentAt = null;
         await cart.save();
     }
     return getCartByUserId(userId);
