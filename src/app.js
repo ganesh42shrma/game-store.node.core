@@ -31,15 +31,11 @@ function getAllowedOrigins() {
     return [];
 }
 
-function getAllowedOriginsCached() {
-    if (!getAllowedOriginsCached._cache) getAllowedOriginsCached._cache = getAllowedOrigins();
-    return getAllowedOriginsCached._cache;
-}
-
+// Read on every request (no cache) so Vercel Preview always uses current CORS_ORIGIN
 function isOriginAllowed(requestOrigin) {
     const origin = normalizeOrigin(requestOrigin);
     if (!origin) return false;
-    const allowed = getAllowedOriginsCached();
+    const allowed = getAllowedOrigins();
     return allowed.length > 0 && allowed.some((a) => normalizeOrigin(a) === origin);
 }
 
@@ -61,7 +57,6 @@ app.use((req, res, next) => {
 
 app.use(cors({
     origin: (origin, cb) => {
-        // Never allow when origin is missing — avoids sending a wrong Access-Control-Allow-Origin (e.g. first in list)
         if (!origin) return cb(null, false);
         if (!isOriginAllowed(origin)) return cb(null, false);
         cb(null, origin);
