@@ -1,6 +1,7 @@
 const express = require("express");
 const invoiceController = require("../controllers/invoice.controller");
 const adminOrderController = require("../controllers/admin.order.controller");
+const adminAnalyticsController = require("../controllers/admin.analytics.controller");
 const authenticateJWT = require("../middlewares/auth.middleware");
 const validate = require("../middlewares/validate.middleware");
 const { requireRole } = require("../middlewares/rbac.middleware");
@@ -14,12 +15,18 @@ const {
     updateOrderStatusSchema,
     listOrdersAdminQuerySchema,
 } = require("../validators/order.schema");
+const { listAnalyticsQuerySchema } = require("../validators/analytics.schema");
 
 const router = express.Router();
 
 router.use(authenticateJWT);
 router.use(requireRole(["admin"]));
 
+router.get(
+    "/analytics",
+    validate(listAnalyticsQuerySchema, "query"),
+    adminAnalyticsController.getAnalytics
+);
 router.get(
     "/orders",
     validate(listOrdersAdminQuerySchema, "query"),

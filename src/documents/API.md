@@ -1602,6 +1602,73 @@ Returns any invoice by ID.
 
 ---
 
+### Analytics (dashboard)
+
+| Method | Path                   | Auth  |
+|--------|------------------------|-------|
+| GET    | `/api/admin/analytics` | Admin |
+
+Returns dashboard metrics and chart data: overview KPIs, revenue and orders by period, top products, sales by platform/genre, review metrics, and user growth. One request returns all sections; optional `from`/`to` scope time-bound metrics (default last 30 days for time-series).
+
+**Query parameters**
+
+| Param    | Type   | Description |
+|----------|--------|-------------|
+| from     | string | Optional. Start of range (ISO date). When omitted with `to`, time-series use last 30 days. |
+| to       | string | Optional. End of range (ISO date). |
+| groupBy  | string | Time bucket for series: `day` (default), `week`, or `month`. |
+| limit    | number | Optional. Max top products to return (1–50, default 10). |
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "overview": {
+      "totalRevenue": 123456.78,
+      "totalOrders": 42,
+      "completedOrders": 40,
+      "totalUsers": 100,
+      "totalProducts": 50,
+      "lowStockCount": 3,
+      "ordersByStatus": { "pending": 1, "completed": 40, "cancelled": 1 }
+    },
+    "revenueByPeriod": [
+      { "date": "2026-02-01", "revenue": 1000, "orderCount": 5 }
+    ],
+    "ordersByPeriod": [
+      { "date": "2026-02-01", "count": 5 }
+    ],
+    "topProducts": [
+      {
+        "productId": "...",
+        "title": "Game Title",
+        "platform": "PC",
+        "quantitySold": 10,
+        "revenue": 2999.9
+      }
+    ],
+    "salesByPlatform": [
+      { "platform": "PC", "revenue": 5000, "orderCount": 25 }
+    ],
+    "salesByGenre": [
+      { "genre": "Action", "revenue": 3000, "orderCount": 15 }
+    ],
+    "reviewMetrics": { "totalReviews": 200, "averageRating": 4.2 },
+    "userGrowth": [
+      { "date": "2026-02-01", "count": 2 }
+    ]
+  }
+}
+```
+
+- **Revenue:** From orders with `paymentStatus: 'paid'`; time bucketing uses `paidAt` when present, else `createdAt`.
+- **ordersByPeriod:** All order statuses, bucketed by `createdAt`.
+- **salesByPlatform** / **salesByGenre:** `orderCount` is the number of order line items in that platform/genre.
+
+---
+
 ## Summary table
 
 | Method | Path | Auth | Module |
@@ -1648,6 +1715,7 @@ Returns any invoice by ID.
 | POST | `/api/payments/:id/confirm` | Yes | Payments |
 | GET | `/api/events/recent-purchases` | No | Events (SSE) |
 | GET | `/api/invoices/:id` | Yes | Invoices |
+| GET | `/api/admin/analytics` | Yes (admin) | Admin |
 | GET | `/api/admin/orders` | Yes (admin) | Admin |
 | PATCH | `/api/admin/orders/:id` | Yes (admin) | Admin |
 | GET | `/api/admin/invoices` | Yes (admin) | Admin |
