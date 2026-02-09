@@ -8,7 +8,7 @@ const app = express();
 
 /**
  * CORS: allow frontend origin(s) — the URL where your frontend app runs (e.g. Vercel frontend URL).
- * CORS_ORIGIN must be the FRONTEND origin, not this backend URL.
+ * CORS_ORIGIN must be the FRONTEND origin
  * - Set CORS_ORIGIN in .env (e.g. https://your-frontend.vercel.app or comma-separated for multiple).
  * - Values without a scheme get https:// added; trailing slashes are stripped.
  * - In development, defaults to http://localhost:5174 when CORS_ORIGIN is unset.

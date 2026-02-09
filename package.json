@@ -15,7 +15,8 @@
     "test:full-flow": "node src/scripts/test-full-flow.js",
     "test:full-flow:user": "TEST_USER_EMAIL=ganesh@gamestore.com TEST_USER_PASSWORD=ganu1234 node src/scripts/test-full-flow.js",
     "email:cart-abandonment": "node src/scripts/run-cart-abandonment-emails.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --runInBand",
+    "test:watch": "jest --runInBand --watch"
   },
   "keywords": [],
   "author": "",
@@ -36,6 +37,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.0.0"
   }
 }
