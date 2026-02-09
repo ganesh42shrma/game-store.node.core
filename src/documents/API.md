@@ -252,20 +252,22 @@ Base path: `/api/products`
 
 **Query parameters**
 
-| Param    | Type   | Description                                      |
-|----------|--------|--------------------------------------------------|
-| page     | number | Page number (default: 1)                         |
-| limit    | number | Items per page (default: 10)                     |
-| search   | string | Text search in title, description, genre (case-insensitive) |
-| q        | string | Same as `search` (alternative param name)        |
-| platform | string | Filter: `PC` \| `PS5` \| `XBOX` \| `SWITCH`      |
-| genre    | string | Filter by genre                                  |
-| minPrice | number | Min price                                        |
-| maxPrice | number | Max price                                        |
-| fields   | string | Comma-separated field list (e.g. `title,price`)  |
-| sort     | string | Sort (e.g. `price`, `-createdAt`)               |
+| Param    | Type   | Description                                                                 |
+|----------|--------|-----------------------------------------------------------------------------|
+| page     | number | Page number (default: 1)                                                    |
+| limit    | number | Items per page (default: 10)                                                |
+| search   | string | Text search in title, description, shortDescription, genre, tags (case-insensitive) |
+| q        | string | Same as `search` (alternative param name)                                   |
+| platform | string | Filter: `PC` \| `PS5` \| `XBOX` \| `SWITCH`                                 |
+| genre    | string | Filter by genre                                                             |
+| tag      | string | Filter by single tag (products that have this tag)                          |
+| tags     | string | Comma-separated tags; products that have any of these tags                  |
+| minPrice | number | Min price                                                                   |
+| maxPrice | number | Max price                                                                   |
+| fields   | string | Comma-separated field list (e.g. `title,price`)                             |
+| sort     | string | Sort (e.g. `price`, `-createdAt`)                                           |
 
-**Examples:** `GET /api/products?search=action`, `GET /api/products?q=RPG&platform=PC`, `GET /api/products?search=game&minPrice=10&maxPrice=50`
+**Examples:** `GET /api/products?search=action`, `GET /api/products?q=RPG&platform=PC`, `GET /api/products?tag=multiplayer`, `GET /api/products?search=game&minPrice=10&maxPrice=50`
 
 **Response (200)**
 
@@ -276,7 +278,9 @@ Base path: `/api/products`
     {
       "_id": "<productId>",
       "title": "GTA VI",
-      "description": "Open-world action adventure",
+      "description": "Open-world action adventure set in a sprawling city...",
+      "shortDescription": "Open-world action adventure",
+      "tags": ["action", "open-world", "multiplayer"],
       "price": 4999,
       "platform": "PS5",
       "genre": "Action",
@@ -293,7 +297,28 @@ Base path: `/api/products`
 }
 ```
 
-Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://www.youtube.com/watch?v=...`, `https://youtu.be/...`).
+- **Descriptions:** Use `shortDescription` on listing/card views; use `description` on the product details page.
+- **Tags:** Array of strings (e.g. `["action", "multiplayer"]`) for filtering and recommendations (e.g. related by tags). Stored normalized (trimmed, lowercase). Max 20 tags, each max 50 characters.
+- **youtubeLinks:** Array of 0–3 YouTube URLs (e.g. `https://www.youtube.com/watch?v=...`, `https://youtu.be/...`).
+
+---
+
+### List all tags
+
+| Method | Path                 | Auth | Description                                           |
+|--------|----------------------|------|-------------------------------------------------------|
+| GET    | `/api/products/tags` | No   | All distinct tags across products (sorted alphabetically). |
+
+Use this when creating or editing a product: call it to get existing tags for autocomplete/suggestions. The admin can pick from these or type a new tag; new tags are stored with the product and will appear in this list for future products.
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": ["action", "multiplayer", "open-world", "rpg", "singleplayer"]
+}
+```
 
 ---
 
@@ -311,12 +336,21 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
   "data": {
     "_id": "<productId>",
     "title": "GTA VI",
-    "description": "Open-world action adventure",
+    "description": "Open-world action adventure set in a sprawling city...",
+    "shortDescription": "Open-world action adventure",
+    "tags": ["action", "open-world", "multiplayer"],
     "price": 4999,
     "platform": "PS5",
     "genre": "Action",
     "stock": 50,
-    "rating": 0,
+    "rating": 4.2,
+    "reviewCount": 150,
+    "positiveCount": 128,
+    "reviewSummary": {
+      "label": "Very Positive",
+      "percentPositive": 85,
+      "reviewCount": 150
+    },
     "coverImage": null,
     "releaseDate": null,
     "isActive": true,
@@ -325,6 +359,10 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
   }
 }
 ```
+
+- **rating** – Average of all review ratings (1–5), updated when reviews are added/updated/deleted.
+- **reviewCount** / **positiveCount** – Used to compute **reviewSummary**. A review is "positive" if rating ≥ 4.
+- **reviewSummary** – Steam-style summary: **label** (e.g. "Very Positive", "Mixed", "No reviews yet"), **percentPositive** (null if no reviews), **reviewCount**. Labels: Overwhelmingly Positive (95%+), Very Positive (80–94%), Positive (65–79%), Mostly Positive (50–64%), Mixed (40–49%), Mostly Negative (25–39%), Negative (15–24%), Very Negative (5–14%), Overwhelmingly Negative (0–4%). Shown only when there are ≥ 5 reviews; otherwise "No reviews yet" or "Need more reviews".
 
 **Error (404)**
 
@@ -337,6 +375,137 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
 
 ---
 
+### Related products (similar games)
+
+| Method | Path                        | Auth | Description                                      |
+|--------|-----------------------------|------|--------------------------------------------------|
+| GET    | `/api/products/:id/related` | No   | Products that share at least one tag, ranked by most tags in common. |
+
+Use this on the product details page to show a "Similar games" or "You might also like" section.
+
+**Query parameters**
+
+| Param  | Type   | Default | Description                    |
+|--------|--------|---------|--------------------------------|
+| limit  | number | 6       | Max number of related products (1–20). |
+
+**Response (200)** – array of product objects (same shape as list/detail; excludes the current product). Sorted by number of matching tags (descending), then by `_id`. Returns an empty array if the product has no tags or no other products share any tag.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "<otherProductId>",
+      "title": "Other Game",
+      "shortDescription": "...",
+      "tags": ["action", "open-world"],
+      "price": 49.99,
+      "platform": "PC",
+      "genre": "Action",
+      "coverImage": "...",
+      ...
+    }
+  ]
+}
+```
+
+**Error (404)** – Product not found (same as Get product by ID).
+
+---
+
+### Reviews
+
+Base path: `/api/products/:id/reviews` (replace `:id` with the product ID).
+
+#### List reviews for a product
+
+| Method | Path                        | Auth | Description                    |
+|--------|-----------------------------|------|--------------------------------|
+| GET    | `/api/products/:id/reviews` | No   | Paginated list of reviews with Steam-style summary. |
+
+**Query parameters**
+
+| Param  | Type   | Default     | Description              |
+|--------|--------|-------------|--------------------------|
+| page   | number | 1           | Page number.             |
+| limit  | number | 10          | Items per page (max 50). |
+| sort   | string | `-createdAt`| `createdAt` (oldest first) or `-createdAt` (newest first). |
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "label": "Very Positive",
+      "percentPositive": 85,
+      "reviewCount": 150
+    },
+    "reviews": [
+      {
+        "_id": "<reviewId>",
+        "user": { "_id": "<userId>", "name": "John", "profilePicture": null },
+        "product": "<productId>",
+        "rating": 5,
+        "comment": "Great game!",
+        "createdAt": "2026-02-06T10:00:00.000Z",
+        "updatedAt": "2026-02-06T10:00:00.000Z"
+      }
+    ],
+    "meta": { "total": 150, "page": 1, "limit": 10, "totalPages": 15 }
+  }
+}
+```
+
+**Error (404)** – Product not found.
+
+---
+
+#### Create or update my review
+
+| Method | Path                        | Auth | Description                                      |
+|--------|-----------------------------|------|--------------------------------------------------|
+| POST   | `/api/products/:id/reviews` | Yes  | One review per user per product; upserts (create or replace). |
+
+**Request body**
+
+| Field   | Type   | Required | Rules                    |
+|---------|--------|----------|--------------------------|
+| rating  | number | Yes      | Integer 1–5              |
+| comment | string | No       | Max 2000 characters      |
+
+**Response (200)** – The saved review (with populated `user`: name, profilePicture).
+
+**Error (404)** – Product not found.
+
+---
+
+#### Get my review for this product
+
+| Method | Path                             | Auth | Description                    |
+|--------|----------------------------------|------|--------------------------------|
+| GET    | `/api/products/:id/reviews/me`  | Yes  | Returns the authenticated user's review or `null`. |
+
+**Response (200)** – `{ "success": true, "data": <review or null> }`
+
+**Error (404)** – Product not found.
+
+---
+
+#### Delete my review
+
+| Method | Path                        | Auth | Description                    |
+|--------|-----------------------------|------|--------------------------------|
+| DELETE | `/api/products/:id/reviews` | Yes  | Deletes the authenticated user's review for this product. |
+
+**Response (200)** – `{ "success": true, "message": "Review deleted" }`
+
+**Error (404)** – Review not found (user has not reviewed this product).
+
+---
+
 ### Create product
 
 | Method | Path              | Auth | Roles        |
@@ -345,15 +514,17 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
 
 **Request body**
 
-| Field        | Type     | Required | Rules                          |
-|--------------|----------|----------|--------------------------------|
-| title        | string   | Yes      | Non-empty                      |
-| description  | string   | Yes      | Non-empty                      |
-| price        | number   | Yes      | > 0                            |
-| platform     | string   | Yes      | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
-| genre        | string   | Yes      | Non-empty                      |
-| stock        | number   | No       | Int ≥ 0                        |
-| youtubeLinks | string[] | No       | 0–3 YouTube URLs               |
+| Field             | Type     | Required | Rules                          |
+|-------------------|----------|----------|--------------------------------|
+| title             | string   | Yes      | Non-empty                      |
+| description       | string   | Yes      | Non-empty (full text for details page) |
+| shortDescription  | string   | No       | Max 300 chars; for listing/card preview |
+| price             | number   | Yes      | > 0                            |
+| platform          | string   | Yes      | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
+| genre             | string   | Yes      | Non-empty                      |
+| stock             | number   | No       | Int ≥ 0                        |
+| youtubeLinks      | string[] | No       | 0–3 YouTube URLs               |
+| tags              | string[] | No       | For recommendations; e.g. `["action", "multiplayer"]`. Max 20, each max 50 chars; stored normalized (lowercase). |
 
 **Example**
 
@@ -361,11 +532,13 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
 {
   "title": "Test Game",
   "description": "A game",
+  "shortDescription": "A short preview for listings",
   "price": 19.99,
   "platform": "PC",
   "genre": "RPG",
   "stock": 10,
-  "youtubeLinks": ["https://www.youtube.com/watch?v=xxx", "https://youtu.be/yyy"]
+  "youtubeLinks": ["https://www.youtube.com/watch?v=xxx", "https://youtu.be/yyy"],
+  "tags": ["rpg", "singleplayer"]
 }
 ```
 
@@ -378,6 +551,8 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
     "_id": "<productId>",
     "title": "Test Game",
     "description": "A game",
+    "shortDescription": "A short preview for listings",
+    "tags": ["rpg", "singleplayer"],
     "price": 19.99,
     "platform": "PC",
     "genre": "RPG",
@@ -400,17 +575,19 @@ Products include `youtubeLinks`: an array of 0–3 YouTube URLs (e.g. `https://w
 
 **Request body** – all fields optional
 
-| Field        | Type     | Rules                          |
-|--------------|----------|---------------------------------|
-| title        | string   | Non-empty                       |
-| description  | string   | Non-empty                       |
-| price        | number   | > 0                             |
-| platform     | string   | `PC` \| `PS5` \| `XBOX` \| `SWITCH` |
-| genre        | string   | Non-empty                       |
-| stock        | number   | Int ≥ 0                         |
-| youtubeLinks | string[] | 0–3 YouTube URLs (omit to leave unchanged) |
+| Field             | Type     | Rules                                                                 |
+|-------------------|----------|-----------------------------------------------------------------------|
+| title             | string   | Non-empty                                                             |
+| description       | string   | Non-empty                                                             |
+| shortDescription  | string   | Max 300 chars (omit to leave unchanged)                               |
+| price             | number   | > 0                                                                   |
+| platform          | string   | `PC` \| `PS5` \| `XBOX` \| `SWITCH`                                  |
+| genre             | string   | Non-empty                                                             |
+| stock             | number   | Int ≥ 0                                                               |
+| youtubeLinks      | string[] | 0–3 YouTube URLs (omit to leave unchanged)                            |
+| tags              | string[] | Max 20 tags, each max 50 chars; stored normalized (omit to leave unchanged) |
 
-**Response (200)** – updated product object (same shape as create; includes `youtubeLinks` array).
+**Response (200)** – updated product object (same shape as create; includes `shortDescription`, `tags`, `youtubeLinks`).
 
 **Error (404)** – Product not found.
 
@@ -1382,7 +1559,13 @@ Returns any invoice by ID.
 | POST | `/api/auth/register` | No | Auth |
 | POST | `/api/auth/login` | No | Auth |
 | GET | `/api/products` | No | Products |
+| GET | `/api/products/tags` | No | Products |
 | GET | `/api/products/:id` | No | Products |
+| GET | `/api/products/:id/related` | No | Products |
+| GET | `/api/products/:id/reviews` | No | Products (Reviews) |
+| GET | `/api/products/:id/reviews/me` | Yes | Products (Reviews) |
+| POST | `/api/products/:id/reviews` | Yes | Products (Reviews) |
+| DELETE | `/api/products/:id/reviews` | Yes | Products (Reviews) |
 | POST | `/api/products` | Yes (admin/manager) | Products |
 | PATCH | `/api/products/:id` | Yes (admin/manager) | Products |
 | DELETE | `/api/products/:id` | Yes (admin/manager) | Products |

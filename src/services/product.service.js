@@ -1,4 +1,5 @@
 const Product = require("../models/product.model");
+const productAggregations = require("../aggregations/product.aggregations");
 
 function escapeRegex(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -13,6 +14,8 @@ async function getAllProducts(queryParams) {
         maxPrice,
         search,
         q,
+        tag,
+        tags,
         fields,
         sort,
         page = 1,
@@ -31,6 +34,10 @@ async function getAllProducts(queryParams) {
         if (minPrice) filter.price.$gte = Number(minPrice);
         if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
+    const tagValues = tag ? [tag] : Array.isArray(tags) ? tags : typeof tags === "string" ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
+    if (tagValues.length > 0) {
+        filter.tags = tagValues.length === 1 ? tagValues[0] : { $in: tagValues };
+    }
     const searchTerm = search || q;
     if (searchTerm && typeof searchTerm === "string" && searchTerm.trim()) {
         const escaped = escapeRegex(searchTerm.trim());
@@ -38,7 +45,9 @@ async function getAllProducts(queryParams) {
         filter.$or = [
             { title: regex },
             { description: regex },
+            { shortDescription: regex },
             { genre: regex },
+            { tags: regex },
         ];
     }
 
@@ -57,6 +66,16 @@ async function getAllProducts(queryParams) {
     query = query.skip(skip).limit(Number(limit));
     return query;
 };
+
+//get all distinct tags across products (for admin autocomplete / suggestions when creating or editing products)
+async function getAllTags() {
+    return productAggregations.getAllDistinctTags();
+}
+
+//get related products by shared tags (for product details page "similar games")
+async function getRelatedProducts(productId, limit = 6) {
+    return productAggregations.getRelatedByTags(productId, limit);
+}
 
 //get one product item
 async function getProductById(productId) {
@@ -92,6 +111,8 @@ async function updateProductCoverImage(productId, coverImageUrl) {
 
 module.exports = {
     getAllProducts,
+    getAllTags,
+    getRelatedProducts,
     getProductById,
     createProduct,
     updateProduct,

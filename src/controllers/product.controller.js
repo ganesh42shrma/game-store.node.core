@@ -1,5 +1,6 @@
 const productService = require("../services/product.service");
 const uploadService = require("../services/upload.service");
+const { getReviewSummary } = require("../utils/reviewSummary");
 
 async function getProducts(req, res, next) {
     try {
@@ -7,6 +8,18 @@ async function getProducts(req, res, next) {
         res.status(200).json({
             success: true,
             data: products,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function getProductTags(req, res, next) {
+    try {
+        const tags = await productService.getAllTags();
+        res.status(200).json({
+            success: true,
+            data: tags,
         });
     } catch (error) {
         next(error);
@@ -22,10 +35,35 @@ async function getProduct(req, res, next) {
                 message: "Product not found"
             });
         }
+        const data = product.toJSON ? product.toJSON() : product;
+        data.reviewSummary = getReviewSummary(
+            data.reviewCount ?? 0,
+            data.positiveCount ?? 0
+        );
         res.status(200).json({
             success: true,
-            data: product,
-        })
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function getRelatedProducts(req, res, next) {
+    try {
+        const product = await productService.getProductById(req.params.id);
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found"
+            });
+        }
+        const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 6));
+        const related = await productService.getRelatedProducts(req.params.id, limit);
+        res.status(200).json({
+            success: true,
+            data: related,
+        });
     } catch (error) {
         next(error);
     }
@@ -121,6 +159,8 @@ async function uploadProductImage(req, res, next) {
 module.exports = {
     getProduct,
     getProducts,
+    getProductTags,
+    getRelatedProducts,
     createProduct,
     updateProduct,
     deleteProduct,

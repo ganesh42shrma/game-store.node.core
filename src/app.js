@@ -7,30 +7,69 @@ const logger = require("./config/logger");
 const app = express();
 
 /**
- * CORS: allow frontend origin(s).
+ * CORS: allow frontend origin(s) — the URL where your frontend app runs (e.g. Vercel frontend URL).
+ * CORS_ORIGIN must be the FRONTEND origin, not this backend URL.
  * - Set CORS_ORIGIN in .env (e.g. https://your-frontend.vercel.app or comma-separated for multiple).
+ * - Values without a scheme get https:// added; trailing slashes are stripped.
  * - In development, defaults to http://localhost:5174 when CORS_ORIGIN is unset.
  */
+function normalizeOrigin(url) {
+    if (!url || typeof url !== "string") return "";
+    return url.trim().replace(/\/+$/, "");
+}
+
 function getAllowedOrigins() {
     if (process.env.CORS_ORIGIN) {
         return process.env.CORS_ORIGIN.split(",")
-            .map((s) => s.trim().replace(/\/+$/, ""))
-            .filter(Boolean);
+            .map((s) => normalizeOrigin(s))
+            .filter(Boolean)
+            .map((s) => (s.startsWith("http://") || s.startsWith("https://") ? s : `https://${s}`));
     }
     if (process.env.NODE_ENV !== "production") {
         return ["http://localhost:5174"];
     }
     return [];
 }
-const allowedOrigins = getAllowedOrigins();
+
+function getAllowedOriginsCached() {
+    if (!getAllowedOriginsCached._cache) getAllowedOriginsCached._cache = getAllowedOrigins();
+    return getAllowedOriginsCached._cache;
+}
+
+function isOriginAllowed(requestOrigin) {
+    const origin = normalizeOrigin(requestOrigin);
+    if (!origin) return false;
+    const allowed = getAllowedOriginsCached();
+    return allowed.length > 0 && allowed.some((a) => normalizeOrigin(a) === origin);
+}
+
+// Handle preflight (OPTIONS) for all paths so CORS headers are always set (reliable on Vercel serverless).
+// Uses middleware instead of app.options("*") because Express 5 path-to-regexp rejects bare "*".
+app.use((req, res, next) => {
+    if (req.method !== "OPTIONS") return next();
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        res.setHeader("Access-Control-Max-Age", "86400");
+        return res.status(204).end();
+    }
+    next();
+});
+
 app.use(cors({
     origin: (origin, cb) => {
-        if (allowedOrigins.length === 0) return cb(null, false);
-        if (!origin) return cb(null, true);
-        if (allowedOrigins.includes(origin)) return cb(null, origin);
-        cb(null, false);
+        // Never allow when origin is missing — avoids sending a wrong Access-Control-Allow-Origin (e.g. first in list)
+        if (!origin) return cb(null, false);
+        if (!isOriginAllowed(origin)) return cb(null, false);
+        cb(null, origin);
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 204,
 }));
 
 /**

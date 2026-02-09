@@ -1,0 +1,122 @@
+{
+  "Elden Ring": {
+    "shortDescription": "FromSoftware's open-world action RPG. Forge your path through the Lands Between with challenging combat, deep lore, and legendary bosses.",
+    "tags": ["action", "rpg", "open-world", "fantasy", "difficult", "pc", "ps5", "xbox"]
+  },
+  "Cyberpunk 2077": {
+    "shortDescription": "Immersive open-world RPG in Night City. Play as V, customize with cyberware, and shape your story through choices and intense action.",
+    "tags": ["rpg", "open-world", "sci-fi", "story-driven", "pc", "ps5", "xbox"]
+  },
+  "God of War Ragnarok": {
+    "shortDescription": "Kratos and Atreus return in an emotional, action-packed journey through Norse realms. Cinematic storytelling meets brutal combat.",
+    "tags": ["action", "story-driven", "adventure", "ps5"]
+  },
+  "The Legend of Zelda: Tears of the Kingdom": {
+    "shortDescription": "Link explores the skies and depths of Hyrule. Build, solve puzzles, and discover secrets in a vast open world.",
+    "tags": ["adventure", "open-world", "puzzle", "action", "switch"]
+  },
+  "Super Mario Odyssey": {
+    "shortDescription": "Mario travels the world with Cappy in a joyful platforming adventure. Capture enemies, solve puzzles, and explore vibrant kingdoms.",
+    "tags": ["platformer", "family", "adventure", "switch"]
+  },
+  "Halo Infinite": {
+    "shortDescription": "Master Chief returns in a sci-fi FPS. Expansive campaign and fast-paced multiplayer on the Halo ring.",
+    "tags": ["shooter", "sci-fi", "multiplayer", "campaign", "xbox", "pc"]
+  },
+  "Forza Horizon 5": {
+    "shortDescription": "Open-world racing across Mexico. Hundreds of cars, dynamic seasons, and endless events in stunning landscapes.",
+    "tags": ["racing", "open-world", "simulation", "xbox", "pc"]
+  },
+  "Marvel's Spider-Man 2": {
+    "shortDescription": "Swing through New York as Peter and Miles. Fluid combat, cinematic story, and a vibrant open world full of secrets.",
+    "tags": ["action", "open-world", "superhero", "story-driven", "ps5"]
+  },
+  "Baldur's Gate 3": {
+    "shortDescription": "D&D-inspired RPG where your choices shape everything. Tactical turn-based combat, deep story, and memorable companions.",
+    "tags": ["rpg", "turn-based", "fantasy", "story-driven", "pc", "ps5", "xbox"]
+  },
+  "Red Dead Redemption 2": {
+    "shortDescription": "Epic Western tale of Arthur Morgan and the Van der Linde gang. A vast, immersive open world of loyalty and redemption.",
+    "tags": ["open-world", "action", "adventure", "story-driven", "pc", "ps5", "xbox"]
+  },
+  "The Last of Us Part II": {
+    "shortDescription": "Ellie's emotional journey through a post-apocalyptic world. Stealth, survival, and a story of revenge and humanity.",
+    "tags": ["action", "story-driven", "horror", "adventure", "ps5"]
+  },
+  "Animal Crossing: New Horizons": {
+    "shortDescription": "Build your dream island, decorate, and befriend animal villagers. A relaxing life sim with fishing, bugs, and seasonal events.",
+    "tags": ["simulation", "relaxing", "family", "creative", "switch"]
+  },
+  "Grand Theft Auto V": {
+    "shortDescription": "Three protagonists, Los Santos, and endless action. Heists, missions, and a massive online world.",
+    "tags": ["open-world", "action", "multiplayer", "online", "pc", "ps5", "xbox"]
+  },
+  "EA Sports FC 24": {
+    "shortDescription": "Realistic football with authentic teams and leagues. Build your squad and compete online or in career mode.",
+    "tags": ["sports", "simulation", "multiplayer", "online", "ps5", "xbox", "pc"]
+  },
+  "Call of Duty: Modern Warfare III": {
+    "shortDescription": "Intense modern combat with a gripping campaign and competitive multiplayer. Refined gunplay and tactical options.",
+    "tags": ["shooter", "multiplayer", "campaign", "online", "xbox", "ps5", "pc"]
+  },
+  "Diablo IV": {
+    "shortDescription": "Action RPG in Sanctuary. Slay demons, choose your class, and chase loot in a shared open world with seasons.",
+    "tags": ["action", "rpg", "open-world", "multiplayer", "pc", "ps5", "xbox"]
+  },
+  "Hogwarts Legacy": {
+    "shortDescription": "Attend Hogwarts in the 1800s. Learn spells, explore the wizarding world, and shape your own magical destiny.",
+    "tags": ["rpg", "open-world", "fantasy", "adventure", "pc", "ps5", "xbox"]
+  },
+  "Resident Evil 4 Remake": {
+    "shortDescription": "Leon S. Kennedy's mission reimagined. Survival horror with refined combat, puzzles, and tense encounters.",
+    "tags": ["horror", "action", "remake", "story-driven", "ps5", "xbox", "pc"]
+  },
+  "Metroid Dread": {
+    "shortDescription": "Samus Aran in a side-scrolling action adventure. Explore, upgrade, and evade relentless enemies in a suspenseful journey.",
+    "tags": ["action", "platformer", "sci-fi", "metroidvania", "switch"]
+  },
+  "Starfield": {
+    "shortDescription": "Bethesda's space RPG. Explore star systems, pilot ships, and shape your path in a vast sci-fi universe.",
+    "tags": ["rpg", "sci-fi", "open-world", "exploration", "xbox", "pc"]
+  },
+  "Final Fantasy XVI": {
+    "shortDescription": "Dramatic fantasy where Eikons shape fate. Real-time action combat, political intrigue, and epic set pieces.",
+    "tags": ["rpg", "action", "fantasy", "story-driven", "ps5", "pc"]
+  },
+  "Mario Kart 8 Deluxe": {
+    "shortDescription": "Race with Mario and friends. Colorful tracks, power-ups, and battle modes for local and online multiplayer.",
+    "tags": ["racing", "multiplayer", "family", "switch"]
+  },
+  "Sekiro: Shadows Die Twice": {
+    "shortDescription": "Precise sword combat in feudal Japan. A shinobi's revenge with demanding bosses and rewarding skill-based gameplay.",
+    "tags": ["action", "difficult", "adventure", "pc", "ps5", "xbox"]
+  },
+  "Horizon Forbidden West": {
+    "shortDescription": "Aloy explores the Forbidden West. Robotic creatures, ancient mysteries, and strategic combat in a stunning open world.",
+    "tags": ["action", "rpg", "open-world", "sci-fi", "ps5"]
+  },
+  "Sea of Thieves": {
+    "shortDescription": "Shared-world pirate adventure. Sail, hunt treasure, battle crews, and face mythical creatures solo or with friends.",
+    "tags": ["adventure", "multiplayer", "open-world", "co-op", "xbox", "pc"]
+  },
+  "Stardew Valley": {
+    "shortDescription": "Farm, mine, fish, and befriend the valley. A charming simulation with cozy progression and seasonal events.",
+    "tags": ["simulation", "relaxing", "indie", "pc", "switch", "xbox", "ps5"]
+  },
+  "Monster Hunter Rise": {
+    "shortDescription": "Hunt massive monsters with strategic combat and wirebugs. Solo or co-op, craft gear and master your weapon.",
+    "tags": ["action", "rpg", "co-op", "multiplayer", "switch", "pc", "xbox", "ps5"]
+  },
+  "Dead Space Remake": {
+    "shortDescription": "Survive the USG Ishimura in this sci-fi horror remake. Isaac Clarke faces necromorphs in tense, atmospheric combat.",
+    "tags": ["horror", "sci-fi", "remake", "survival", "pc", "ps5", "xbox"]
+  },
+  "Ratchet & Clank: Rift Apart": {
+    "shortDescription": "Dimension-hopping action with Ratchet and Rivet. Creative weapons, vibrant worlds, and seamless reality-shifting gameplay.",
+    "tags": ["platformer", "action", "sci-fi", "adventure", "ps5"]
+  },
+  "Hollow Knight": {
+    "shortDescription": "Explore a haunting insect kingdom in this Metroidvania. Precise combat, hidden paths, and deep lore to discover.",
+    "tags": ["metroidvania", "platformer", "indie", "difficult", "pc", "switch", "xbox", "ps5"]
+  }
+}

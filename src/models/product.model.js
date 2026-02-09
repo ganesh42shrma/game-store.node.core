@@ -14,6 +14,26 @@ const productSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        shortDescription: {
+            type: String,
+            default: "",
+            maxlength: 300,
+            trim: true,
+        },
+        tags: {
+            type: [String],
+            default: [],
+            validate: {
+                validator(v) {
+                    return v.length <= 20 && v.every((t) => typeof t === "string" && t.length > 0 && t.length <= 50);
+                },
+                message: "At most 20 tags, each non-empty and max 50 characters",
+            },
+            set(tags) {
+                if (!Array.isArray(tags)) return [];
+                return [...new Set(tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean))];
+            },
+        },
         price: {
             type: Number,
             required: true,
@@ -39,6 +59,16 @@ const productSchema = new mongoose.Schema(
             min: 0,
             max: 5,
             default: 0,
+        },
+        reviewCount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        positiveCount: {
+            type: Number,
+            default: 0,
+            min: 0,
         },
         coverImage: {
             type: String,
@@ -68,6 +98,7 @@ const productSchema = new mongoose.Schema(
             transform(doc, ret) {
                 ret.coverImage = ret.coverImage || DEFAULT_COVER_IMAGE_URL;
                 ret.youtubeLinks = Array.isArray(ret.youtubeLinks) ? ret.youtubeLinks : [];
+                ret.tags = Array.isArray(ret.tags) ? ret.tags : [];
                 return ret;
             },
         },
