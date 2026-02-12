@@ -3,10 +3,7 @@ const cartService = require("../services/cart.service");
 async function getCart(req, res, next) {
     try {
         const cart = await cartService.getCartByUserId(req.user.id);
-        res.status(200).json({
-            success: true,
-            data: cart,
-        });
+        res.success(cart);
     } catch (error) {
         next(error);
     }
@@ -17,15 +14,9 @@ async function addItem(req, res, next) {
         const { productId, quantity } = req.body;
         const cart = await cartService.addItem(req.user.id, productId, quantity);
         if (!cart) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found or inactive",
-            });
+            return res.sendError("Product not found or inactive", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: cart,
-        });
+        res.success(cart);
     } catch (error) {
         next(error);
     }
@@ -41,15 +32,9 @@ async function updateItem(req, res, next) {
             quantity
         );
         if (!cart) {
-            return res.status(404).json({
-                success: false,
-                message: "Cart or item not found",
-            });
+            return res.sendError("Cart or item not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: cart,
-        });
+        res.success(cart);
     } catch (error) {
         next(error);
     }
@@ -58,10 +43,7 @@ async function updateItem(req, res, next) {
 async function removeItem(req, res, next) {
     try {
         const cart = await cartService.removeItem(req.user.id, req.params.productId);
-        res.status(200).json({
-            success: true,
-            data: cart,
-        });
+        res.success(cart);
     } catch (error) {
         next(error);
     }
@@ -70,11 +52,7 @@ async function removeItem(req, res, next) {
 async function clearCart(req, res, next) {
     try {
         const cart = await cartService.clearCart(req.user.id);
-        res.status(200).json({
-            success: true,
-            data: cart,
-            message: "Cart cleared",
-        });
+        res.successWithMessage(cart, "Cart cleared");
     } catch (error) {
         next(error);
     }

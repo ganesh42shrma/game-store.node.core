@@ -3,10 +3,7 @@ const addressService = require("../services/address.service");
 async function getAddresses(req, res, next) {
     try {
         const addresses = await addressService.getAddressesByUserId(req.user.id);
-        res.status(200).json({
-            success: true,
-            data: addresses,
-        });
+        res.success(addresses);
     } catch (error) {
         next(error);
     }
@@ -17,15 +14,9 @@ async function getAddress(req, res, next) {
         const { id } = req.params;
         const address = await addressService.getAddressById(id, req.user.id);
         if (!address) {
-            return res.status(404).json({
-                success: false,
-                message: "Address not found"
-            })
+            return res.sendError("Address not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: address,
-        });
+        res.success(address);
     } catch (error) {
         next(error);
     }
@@ -34,10 +25,7 @@ async function getAddress(req, res, next) {
 async function createAddress(req, res, next) {
     try {
         const address = await addressService.createAddress(req.user.id, req.body);
-        res.status(201).json({
-            success: true,
-            data: address,
-        });
+        res.created(address);
     } catch (error) {
         next(error);
     }
@@ -52,15 +40,9 @@ async function updateAddress(req, res, next) {
             req.body
         );
         if (!address) {
-            return res.status(404).json({
-                success: false,
-                message: "Address not found",
-            });
+            return res.sendError("Address not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: address,
-        })
+        res.success(address);
     } catch (error) {
         next(error);
     }
@@ -71,15 +53,9 @@ async function deleteAddress(req, res, next) {
         const { id } = req.params;
         const address = await addressService.deleteAddress(id, req.user.id);
         if (!address) {
-            return res.status(404).json({
-                success: false,
-                message: "Address not found",
-            });
+            return res.sendError("Address not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            message: "Address deleted successfully",
-        });
+        res.successMessage("Address deleted successfully");
     } catch (error) {
         next(error);
     }
@@ -90,16 +66,9 @@ async function setDefault(req, res, next) {
         const { id } = req.params;
         const address = await addressService.setDefaultAddress(id, req.user.id);
         if (!address) {
-            return res.status(404).json({
-                success: false,
-                message: "Address not found",
-            });
+            return res.sendError("Address not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            message: "Address set as default successfully",
-            data: address,
-        });
+        res.successWithMessage(address, "Address set as default successfully");
     } catch (error) {
         next(error);
     }

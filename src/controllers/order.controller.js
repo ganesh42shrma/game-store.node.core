@@ -8,27 +8,15 @@ async function createOrder(req, res, next) {
             addressId
         );
         if (result.code === "EMPTY_CART") {
-            return res.status(400).json({
-                success: false,
-                message: "Cart is empty",
-            });
+            return res.sendError("Cart is empty", 400);
         }
         if (result.code === "ADDRESS_NOT_FOUND") {
-            return res.status(400).json({
-                success: false,
-                message: "Address not found",
-            });
+            return res.sendError("Address not found", 400);
         }
         if (result.code === "NO_VALID_ITEMS") {
-            return res.status(400).json({
-                success: false,
-                message: "No valid products in cart",
-            });
+            return res.sendError("No valid products in cart", 400);
         }
-        res.status(201).json({
-            success: true,
-            data: result.order,
-        });
+        res.created(result.order);
     } catch (error) {
         next(error);
     }
@@ -41,11 +29,7 @@ async function getOrders(req, res, next) {
             req.query
         );
         const totalPages = Math.ceil(total / limit) || 1;
-        res.status(200).json({
-            success: true,
-            data: orders,
-            meta: { total, page, limit, totalPages },
-        });
+        res.paginated(orders, { total, page, limit, totalPages });
     } catch (error) {
         next(error);
     }
@@ -58,15 +42,9 @@ async function getOrder(req, res, next) {
             req.user.id
         );
         if (!order) {
-            return res.status(404).json({
-                success: false,
-                message: "Order not found",
-            });
+            return res.sendError("Order not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: order,
-        });
+        res.success(order);
     } catch (error) {
         next(error);
     }

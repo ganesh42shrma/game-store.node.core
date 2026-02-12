@@ -143,14 +143,39 @@ function gameOnSale(data) {
   <p>Hi ${escapeHtml(userName)},</p>
   <p>Good news – the following games are now on sale. Grab them before the offer ends!</p>
   <ul>${listItems}</ul>
-  <p><a href="${escapeHtml(FRONTEND_URL)}/products" class="btn">Browse all games</a></p>
+    <p><a href="${escapeHtml(FRONTEND_URL)}/products" class="btn">Browse all games</a></p>
 `;
     return baseLayout("Games on sale", body);
+}
+
+/**
+ * Product alert notification (price drop, on sale, available)
+ * @param {{ userName: string, title: string, message: string, productTitle: string, productId: string, price?: number, discountedPrice?: number, isOnSale?: boolean }} data
+ */
+function productAlert(data) {
+    const { userName, title, message, productTitle, productId, price, discountedPrice, isOnSale } = data;
+    const priceLine =
+        discountedPrice != null && isOnSale
+            ? `<p>Was ₹${Number(price).toFixed(2)}, now <strong>₹${Number(discountedPrice).toFixed(2)}</strong></p>`
+            : price != null
+            ? `<p>Price: ₹${Number(price).toFixed(2)}</p>`
+            : "";
+
+    const body = `
+  <h1>${escapeHtml(title)}</h1>
+  <p>Hi ${escapeHtml(userName)},</p>
+  <p>${escapeHtml(message)}</p>
+  <p><strong>${escapeHtml(productTitle)}</strong></p>
+  ${priceLine}
+  <p><a href="${escapeHtml(FRONTEND_URL)}/products/${escapeHtml(String(productId))}" class="btn">View game</a></p>
+`;
+    return baseLayout(title, body);
 }
 
 module.exports = {
     purchaseWithInvoice,
     cartAbandonment,
     gameOnSale,
+    productAlert,
     escapeHtml,
 };

@@ -106,10 +106,24 @@ async function sendGameOnSale(data) {
     });
 }
 
+/**
+ * Send product alert (price drop, on sale, available).
+ * @param {{ to: string, userName: string, title: string, message: string, productTitle: string, productId: string, price?: number, discountedPrice?: number, isOnSale?: boolean }} data
+ */
+async function sendProductAlert(data) {
+    const html = emailTemplates.productAlert(data);
+    return send({
+        to: data.to,
+        subject: data.title || "Your game alert",
+        html,
+    });
+}
+
 module.exports = {
     isConfigured,
     send,
     sendPurchaseWithInvoice,
     sendCartAbandonment,
     sendGameOnSale,
+    sendProductAlert,
 };

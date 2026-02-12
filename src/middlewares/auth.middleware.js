@@ -13,34 +13,22 @@ function authenticateJWT(req, res, next) {
         ? authHeader.slice(7)
         : null;
     if (!token) {
-        return res.status(401).json({
-            success: false,
-            message: "Authentication required",
-        });
+        return res.sendError("Authentication required", 401);
     }
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.sub || decoded.id || decoded.userId;
         if (!userId) {
-            return res.status(401).json({
-                success: false,
-                message: "Invalid token",
-            });
+            return res.sendError("Invalid token", 401);
         }
 
         User.findById(userId)
             .then((user) => {
                 if (!user) {
-                    return res.status(401).json({
-                        success: false,
-                        message: "User not found",
-                    })
+                    return res.sendError("User not found", 401);
                 }
                 if (!user.isActive) {
-                    return res.status(401).json({
-                        success: false,
-                        message: "Account is disabled"
-                    })
+                    return res.sendError("Account is disabled", 401);
                 }
                 req.user = {
                     id: user._id,
@@ -54,18 +42,12 @@ function authenticateJWT(req, res, next) {
             });
     } catch (error) {
         if (error.name === "TokenExpiredError") {
-            return res.status(401).json({
-                success: false,
-                message: "Token expired",
-            })
+            return res.sendError("Token expired", 401);
         }
         if (error.name === "JsonWebTokenError") {
-            return res.status(401).json({
-                success: false,
-                message: "Invalid token",
-            });
+            return res.sendError("Invalid token", 401);
         }
-        next(err);
+        next(error);
     }
 }
 

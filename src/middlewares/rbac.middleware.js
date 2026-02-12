@@ -7,17 +7,11 @@ function requireRole(allowedRoles) {
     return (req, res, next) => {
         const user = req.user;
         if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: "Authentication required",
-            });
+            return res.sendError("Authentication required", 401);
         }
         const role = user.role;
         if (!allowedRoles.includes(role)) {
-            return res.status(403).json({
-                success: false,
-                message: "You do not have permission to access this resource",
-            });
+            return res.sendError("You do not have permission to access this resource", 403);
         }
         next();
     };

@@ -12,6 +12,7 @@ async function getAnalytics(req, res, next) {
             salesByGenre,
             reviewMetrics,
             userGrowth,
+            llmAnalytics,
         ] = await Promise.all([
             analyticsService.getOverview(from, to),
             analyticsService.getRevenueByPeriod(from, to, groupBy),
@@ -21,19 +22,18 @@ async function getAnalytics(req, res, next) {
             analyticsService.getSalesByGenre(from, to),
             analyticsService.getReviewMetrics(),
             analyticsService.getUserGrowth(from, to, groupBy),
+            analyticsService.getLLMAnalytics(from, to, groupBy),
         ]);
-        res.status(200).json({
-            success: true,
-            data: {
-                overview,
-                revenueByPeriod,
-                ordersByPeriod,
-                topProducts,
-                salesByPlatform,
-                salesByGenre,
-                reviewMetrics,
-                userGrowth,
-            },
+        res.success({
+            overview,
+            revenueByPeriod,
+            ordersByPeriod,
+            topProducts,
+            salesByPlatform,
+            salesByGenre,
+            reviewMetrics,
+            userGrowth,
+            llmAnalytics,
         });
     } catch (error) {
         next(error);

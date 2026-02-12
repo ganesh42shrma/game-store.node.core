@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const routes = require("./routes");
+const requestContext = require("./middlewares/requestContext.middleware");
 const requestLogger = require("./middlewares/requestLogger.middleware");
 const rateLimit = require("./middlewares/rateLimit.middleware");
 const logger = require("./config/logger");
@@ -25,8 +26,8 @@ function getAllowedOrigins() {
               .filter(Boolean)
               .map((s) => (s.startsWith("http://") || s.startsWith("https://") ? s : `https://${s}`))
         : [];
-    if (process.env.NODE_ENV !== "production" && !fromEnv.includes("http://localhost:5174")) {
-        fromEnv.push("http://localhost:5174");
+    if (process.env.NODE_ENV !== "production" && !fromEnv.includes("http://localhost:5173")) {
+        fromEnv.push("http://localhost:5173");
     }
     return fromEnv;
 }
@@ -72,6 +73,7 @@ app.use(cors({
  */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(requestContext);
 app.use(requestLogger);
 
 /** 
@@ -91,14 +93,11 @@ app.get("/health", (req, res) => {
 app.use("/api", rateLimit({ windowMs: 60 * 1000, max: 100 }), routes);
 
 /**
- * Fallback 
+ * Fallback 404
  */
 app.use((req, res, next) => {
-    res.status(404).json({
-        success: false,
-        message: "Route not found on game-store.node.core"
-    });
-})
+    res.sendError("Route not found on game-store.node.core", 404);
+});
 
 /**
  * Global error handler
@@ -106,24 +105,16 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
     logger.error(err.message || err);
 
-    //mongoose validation error 
+    // Mongoose validation error
     if (err.name === "ValidationError") {
         const errors = {};
         Object.keys(err.errors).forEach((key) => {
             errors[key] = err.errors[key].message;
         });
-
-        return res.status(400).json({
-            success: false,
-            message: "Validation failed",
-            errors,
-        })
+        return res.sendError("Validation failed", 400, errors);
     }
 
-    res.status(err.statusCode || 500).json({
-        success: false,
-        message: err.message || "Internal Server Error",
-    });
+    res.sendError(err.message || "Internal Server Error", err.statusCode || 500);
 });
 
 module.exports = app;

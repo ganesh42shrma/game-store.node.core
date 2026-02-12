@@ -2,6 +2,7 @@ const Order = require("../models/order.model");
 const User = require("../models/user.model");
 const Product = require("../models/product.model");
 const Review = require("../models/review.model");
+const llmUsageService = require("./llmUsage.service");
 
 const LOW_STOCK_THRESHOLD = 5;
 const DEFAULT_DAYS_RANGE = 30;
@@ -303,6 +304,17 @@ async function getUserGrowth(from, to, groupBy) {
     return result;
 }
 
+/**
+ * LLM usage analytics: total requests, tokens by agent and provider.
+ */
+async function getLLMAnalytics(from, to, groupBy) {
+    const [overview, usageByPeriod] = await Promise.all([
+        llmUsageService.getOverview(from, to),
+        llmUsageService.getUsageByPeriod(from, to, groupBy),
+    ]);
+    return { overview, usageByPeriod };
+}
+
 module.exports = {
     getOverview,
     getRevenueByPeriod,
@@ -312,4 +324,5 @@ module.exports = {
     getSalesByGenre,
     getReviewMetrics,
     getUserGrowth,
+    getLLMAnalytics,
 };

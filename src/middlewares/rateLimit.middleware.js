@@ -50,10 +50,7 @@ function rateLimit(options = {}) {
                 res.setHeader("X-RateLimit-Remaining", Math.max(0, max - count));
                 if (count > max) {
                     logger.warn(`Rate limit exceeded: ${identifier}`);
-                    return res.status(429).json({
-                        success: false,
-                        message,
-                    });
+                    return res.sendError ? res.sendError(message, 429) : res.status(429).json({ success: false, message });
                 }
                 next();
             })

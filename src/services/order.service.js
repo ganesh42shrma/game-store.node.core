@@ -5,6 +5,72 @@ const Address = require("../models/address.model");
 
 const GST_RATE = 18;
 
+/**
+ * Create an order for a single product (does not touch cart).
+ * Used by buy_for_me tool for single-product checkout.
+ * @param {string} userId
+ * @param {string} productId
+ * @param {number} quantity
+ * @param {string} addressId - required
+ * @returns {{ order: object|null, code: string }}
+ */
+async function createOrderForProduct(userId, productId, quantity, addressId) {
+    const product = await Product.findById(productId);
+    if (!product || !product.isActive) {
+        return { order: null, code: "PRODUCT_NOT_FOUND" };
+    }
+    const stock = product.stock ?? 0;
+    if (stock < quantity) {
+        return { order: null, code: "OUT_OF_STOCK" };
+    }
+
+    const address = await Address.findOne({ _id: addressId, user: userId });
+    if (!address) {
+        return { order: null, code: "ADDRESS_NOT_FOUND" };
+    }
+
+    const price =
+        product.isOnSale && product.discountedPrice != null
+            ? product.discountedPrice
+            : product.price;
+    const subtotal = Math.round(price * quantity * 100) / 100;
+    const gstAmount = Math.round(subtotal * (GST_RATE / 100) * 100) / 100;
+    const totalAmount = Math.round((subtotal + gstAmount) * 100) / 100;
+
+    const billingAddress = {
+        line1: address.line1,
+        line2: address.line2 || undefined,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        country: address.country || "India",
+        phone: address.phone || undefined,
+    };
+
+    const order = await Order.create({
+        user: userId,
+        items: [{
+            product: product._id,
+            title: product.title,
+            quantity,
+            price,
+        }],
+        billingAddress,
+        subTotal: subtotal,
+        gstRate: GST_RATE,
+        gstAmount,
+        totalAmount,
+        status: "pending",
+        paymentStatus: "unpaid",
+    });
+
+    const populated = await Order.findById(order._id).populate({
+        path: "items.product",
+        select: "title price platform",
+    });
+    return { order: populated, code: "OK" };
+}
+
 async function createOrderFromCart(userId, addressId = null) {
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
     if (!cart || !cart.items || cart.items.length === 0) {
@@ -81,6 +147,7 @@ async function createOrderFromCart(userId, addressId = null) {
 async function getOrdersByUserId(userId, queryParams) {
     const { page = 1, limit = 10, status, sort } = queryParams;
     const filter = { user: userId };
+
     if (status) filter.status = status;
     let query = Order.find(filter)
         .sort(sort ? sort.split(",").join(" ") : "-createdAt")
@@ -95,10 +162,16 @@ async function getOrdersByUserId(userId, queryParams) {
 }
 
 async function getOrderById(orderId, userId) {
-    const order = await Order.findOne({ _id: orderId, user: userId }).populate({
-        path: "items.product",
-        select: "title price platform coverImage",
-    });
+    const order = await Order.findOne({ _id: orderId, user: userId })
+        .populate({ path: "items.product", select: "title price platform" });
+    return order;
+}
+
+async function getOrderByIdForAdmin(orderId) {
+    const order = await Order.findById(orderId)
+        .populate({ path: "user", select: "email name" })
+        .populate({ path: "items.product", select: "title price platform" })
+        .lean();
     return order;
 }
 
@@ -148,9 +221,11 @@ async function updateOrderStatus(orderId, status) {
 }
 
 module.exports = {
+    createOrderForProduct,
     createOrderFromCart,
     getOrdersByUserId,
     getOrderById,
+    getOrderByIdForAdmin,
     getOrdersForAdmin,
     updateOrderStatus,
 };

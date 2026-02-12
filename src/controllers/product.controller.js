@@ -5,10 +5,7 @@ const { getReviewSummary } = require("../utils/reviewSummary");
 async function getProducts(req, res, next) {
     try {
         const products = await productService.getAllProducts(req.query);
-        res.status(200).json({
-            success: true,
-            data: products,
-        });
+        res.success(products);
     } catch (error) {
         next(error);
     }
@@ -17,10 +14,7 @@ async function getProducts(req, res, next) {
 async function getProductTags(req, res, next) {
     try {
         const tags = await productService.getAllTags();
-        res.status(200).json({
-            success: true,
-            data: tags,
-        });
+        res.success(tags);
     } catch (error) {
         next(error);
     }
@@ -30,20 +24,14 @@ async function getProduct(req, res, next) {
     try {
         const product = await productService.getProductById(req.params.id);
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found"
-            });
+            return res.sendError("Product not found", 404);
         }
         const data = product.toJSON ? product.toJSON() : product;
         data.reviewSummary = getReviewSummary(
             data.reviewCount ?? 0,
             data.positiveCount ?? 0
         );
-        res.status(200).json({
-            success: true,
-            data,
-        });
+        res.success(data);
     } catch (error) {
         next(error);
     }
@@ -53,17 +41,11 @@ async function getRelatedProducts(req, res, next) {
     try {
         const product = await productService.getProductById(req.params.id);
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found"
-            });
+            return res.sendError("Product not found", 404);
         }
         const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 6));
         const related = await productService.getRelatedProducts(req.params.id, limit);
-        res.status(200).json({
-            success: true,
-            data: related,
-        });
+        res.success(related);
     } catch (error) {
         next(error);
     }
@@ -72,11 +54,7 @@ async function getRelatedProducts(req, res, next) {
 async function createProduct(req, res, next) {
     try {
         const product = await productService.createProduct(req.body);
-
-        res.status(201).json({
-            success: true,
-            data: product,
-        })
+        res.created(product);
     } catch (error) {
         next(error);
     }
@@ -88,19 +66,10 @@ async function updateProduct(req, res, next) {
             req.params.id,
             req.body
         );
-
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found"
-            })
+            return res.sendError("Product not found", 404);
         }
-
-        res.status(200).json({
-            success: true,
-            data: product
-        })
-
+        res.success(product);
     } catch (error) {
         next(error);
     }
@@ -110,15 +79,9 @@ async function deleteProduct(req, res, next) {
     try {
         const product = await productService.deleteProduct(req.params.id);
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found",
-            });
+            return res.sendError("Product not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            message: "Product deleted successfully.",
-        });
+        res.successMessage("Product deleted successfully.");
     } catch (error) {
         next(error);
     }
@@ -127,18 +90,12 @@ async function deleteProduct(req, res, next) {
 async function uploadProductImage(req, res, next) {
     try {
         if (!req.file || !req.file.buffer) {
-            return res.status(400).json({
-                success: false,
-                message: "No image file provided. Use multipart/form-data with field name 'image'.",
-            });
+            return res.sendError("No image file provided. Use multipart/form-data with field name 'image'.", 400);
         }
         const productId = req.params.id;
         const product = await productService.getProductById(productId);
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found",
-            });
+            return res.sendError("Product not found", 404);
         }
         const key = uploadService.productImageKey(productId, req.file.originalname);
         const url = await uploadService.uploadToS3(
@@ -147,10 +104,7 @@ async function uploadProductImage(req, res, next) {
             req.file.mimetype
         );
         const updated = await productService.updateProductCoverImage(productId, url);
-        res.status(200).json({
-            success: true,
-            data: updated,
-        });
+        res.success(updated);
     } catch (error) {
         next(error);
     }

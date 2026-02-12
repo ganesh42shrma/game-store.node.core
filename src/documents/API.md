@@ -1450,6 +1450,364 @@ data: {"buyerName":"Alex","country":"India","productTitles":["Elden Ring"],"orde
 - Listen for `message` events; parse `event.data` as JSON and show a toast: e.g. *"Alex from India purchased Elden Ring"*.
 - Reconnect on `error` or `close` if you want to keep the stream alive.
 
+### My alerts (SSE – product alerts)
+
+Per-user stream for product alerts (price drop, on sale, available). When a user has an alert and the condition is met (e.g. game goes on sale), the server pushes a notification to all connected clients for that user.
+
+| Method | Path                         | Auth | Description                    |
+|--------|------------------------------|------|--------------------------------|
+| GET    | `/api/events/my-alerts`      | Yes  | Server-Sent Events stream      |
+
+**Behavior**
+
+- Response is a long-lived **text/event-stream**. The server sends a new event whenever an alert fires for this user (e.g. price drop, game on sale, back in stock).
+- Each event is one line: `data: <JSON>\n\n`.
+- Requires **Authentication** (Bearer token). Use `fetch()` with `Accept: text/event-stream` and `Authorization: Bearer <token>` (standard `EventSource` does not support custom headers) or a library that supports headers for SSE.
+
+**Event payload (JSON)**
+
+| Field          | Type     | Description                                      |
+|----------------|----------|--------------------------------------------------|
+| id             | string   | Notification `_id`                               |
+| type           | string   | `price_drop` \| `on_sale` \| `available` \| `price_below` |
+| productId      | string   | Product `_id`                                    |
+| productTitle   | string   | Product title                                   |
+| title          | string   | Notification title (e.g. "Game on sale!")        |
+| message        | string   | Notification message                             |
+| meta           | object   | `{ price, discountedPrice, isOnSale, stock }`    |
+| createdAt      | string   | ISO timestamp                                   |
+
+---
+
+## Product Alerts
+
+Base path: `/api/alerts`  
+All endpoints require **Authentication**. Users can create alerts for products (“notify me when on sale”, “tell me when price drops below ₹X”, “tell me when available”). A background cron job (e.g. `npm run alerts:run`) checks product state and fires notifications via email and in-app notification.
+
+Alerts can also be created via the **Chat** agent when the user says e.g. “Notify me when Elden Ring goes on sale” or “Tell me when this game drops below 2000”.
+
+### List alerts
+
+| Method | Path           | Auth |
+|--------|----------------|------|
+| GET    | `/api/alerts`  | Yes  |
+
+Returns the current user's active product alerts.
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "alerts": [
+      {
+        "id": "<alertId>",
+        "productId": "<productId>",
+        "productTitle": "Elden Ring",
+        "triggerType": "price_below",
+        "priceThreshold": 2000,
+        "createdAt": "2026-02-12T10:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### Create alert
+
+| Method | Path           | Auth |
+|--------|----------------|------|
+| POST   | `/api/alerts`  | Yes  |
+
+**Request body**
+
+| Field          | Type   | Required | Rules                                                                 |
+|----------------|--------|----------|-----------------------------------------------------------------------|
+| productId      | string | Yes      | Valid product `_id`                                                   |
+| triggerType    | string | Yes      | `on_sale` \| `available` \| `price_drop` \| `price_below`              |
+| priceThreshold | number | No       | Required for `price_drop` and `price_below`; target price (e.g. 2000) |
+
+**Example**
+
+```json
+{
+  "productId": "698c2768a7dee4fffd793738",
+  "triggerType": "price_below",
+  "priceThreshold": 2000
+}
+```
+
+**Response (201)**
+
+```json
+{
+  "alert": {
+    "_id": "<alertId>",
+    "user": "<userId>",
+    "product": "<productId>",
+    "triggerType": "price_below",
+    "priceThreshold": 2000,
+    "isActive": true,
+    "createdAt": "2026-02-12T10:00:00.000Z"
+  }
+}
+```
+
+### Deactivate alert
+
+| Method | Path               | Auth |
+|--------|--------------------|------|
+| DELETE | `/api/alerts/:id`  | Yes  |
+
+Deactivates the alert. Returns 404 if the alert does not exist or does not belong to the user.
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+---
+
+## Notifications
+
+Base path: `/api/notifications`  
+All endpoints require **Authentication**. In-app notifications are created when an alert fires (price drop, on sale, available). Users receive notifications via email and can fetch them via REST. When connected to **GET /api/events/my-alerts**, they also receive real-time SSE events.
+
+### List notifications
+
+| Method | Path                  | Auth |
+|--------|-----------------------|------|
+| GET    | `/api/notifications`  | Yes  |
+
+Returns the current user's notifications.
+
+**Query parameters**
+
+| Parameter   | Type   | Default | Description                          |
+|-------------|--------|---------|--------------------------------------|
+| limit       | number | 20      | Max items (1–50)                     |
+| unreadOnly  | string | false   | `true` or `1` to return only unread   |
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "notifications": [
+      {
+        "id": "<notificationId>",
+        "type": "on_sale",
+        "productId": "<productId>",
+        "product": { "title": "Elden Ring", "price": 2999, "discountedPrice": 1999, "isOnSale": true },
+        "title": "Game on sale!",
+        "message": "Elden Ring is now on sale at ₹1999.00.",
+        "meta": { "price": 2999, "discountedPrice": 1999, "isOnSale": true, "stock": 50 },
+        "read": false,
+        "createdAt": "2026-02-12T10:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### Mark notifications as read
+
+| Method | Path                             | Auth |
+|--------|----------------------------------|------|
+| PATCH  | `/api/notifications/read`        | Yes  |
+
+**Request body**
+
+| Field            | Type            | Required | Rules                     |
+|------------------|-----------------|----------|---------------------------|
+| notificationIds  | string \| string[] | Yes    | Single id or array of ids |
+
+**Example**
+
+```json
+{
+  "notificationIds": ["674a1234567890abcdef1234"]
+}
+```
+
+or
+
+```json
+{
+  "notificationIds": ["674a1234567890abcdef1234", "674a1234567890abcdef5678"]
+}
+```
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "modified": 2
+  }
+}
+```
+
+### Mark all notifications as read
+
+| Method | Path                              | Auth |
+|--------|-----------------------------------|------|
+| PATCH  | `/api/notifications/read-all`     | Yes  |
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "modified": 5
+  }
+}
+```
+
+---
+
+## Chat (Games Q&A)
+
+Base path: `/api/chat`  
+All chat endpoints require **Authentication** (any logged-in user). The agent answers about games, listings, stock, price, on-sale status, and reviews. It can **add games to cart** and **purchase** them when the user says e.g. "Add Elden Ring to cart" or "Buy this game". It always clarifies and confirms before executing, and asks which address and payment method to use for purchases. It refuses PII, prompt-injection, and off-topic requests (e.g. other users' accounts, role changes).
+
+### Send message (Games Q&A agent)
+
+| Method | Path         | Auth |
+|--------|--------------|------|
+| POST   | `/api/chat`  | Yes  |
+
+Sends the user’s message to the games Q&A agent. The agent can list products, get product details, and get reviews. When it mentions a specific game, the reply includes the product id so the frontend can link to the product page and call **GET /api/products/:id** (and **GET /api/products/:id/reviews**) for full details.
+
+**Request body**
+
+| Field     | Type   | Required | Rules                                      |
+|-----------|--------|----------|--------------------------------------------|
+| message   | string | Yes      | Non-empty; max 2000 characters             |
+| thread_id | string | No       | Conversation thread id; when omitted and user is logged in, server uses `{user_id}-chat` for short-term session. Send the same value to keep a coherent thread. |
+
+When the user is **authenticated**, the agent has **long-term memory** per user: it can remember preferences (e.g. budget, favorite genre, platform) via tools and use them to personalize answers. The agent can also **create product alerts** when the user says e.g. “Notify me when Elden Ring is on sale”, “Tell me when this game drops below ₹2000”, or “Tell me when it’s available”; use **GET /api/alerts** to list and **DELETE /api/alerts/:id** to remove. The agent can **add to cart** ("Add X to cart") and **buy** ("Buy X" or "Purchase X"): it confirms once before executing, asks which address (from **GET /api/addresses**) and payment method (Card, UPI, or Net Banking), and asks whether to buy only that game or checkout the entire cart. If the user has no addresses, the agent tells them to add one first. The server injects the current user id for memory; the client may send **thread_id** to align with a specific conversation thread.
+
+**Chat history** is persisted per user and thread. Each message (user and assistant) is saved to the database. The agent receives the last 20 messages of the thread as context. Use **GET /api/chat/history** to load previous messages when the user opens a chat; use **GET /api/chat/threads** to list a user's conversation threads.
+
+**Example**
+
+```json
+{
+  "message": "What games are on sale? Is Hades in stock?"
+}
+```
+
+With optional thread (e.g. for resuming a session):
+
+```json
+{
+  "message": "Recommend something under $50",
+  "thread_id": "user123-chat"
+}
+```
+
+**Response (200)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Here are some games on sale: Hades (product id: 698c2768a7dee4fffd793738) is $19.99, in stock...",
+    "productIds": ["698c2768a7dee4fffd793738"],
+    "thread_id": "674a1234567890abcdef1234-chat",
+    "user_id": "674a1234567890abcdef1234"
+  }
+}
+```
+
+- **message** – The agent’s reply, sanitized for display: no product IDs or exact stock numbers (e.g. “in stock” instead of “stock count is 95”). Use this as the chat bubble text. Do not show product IDs to the user.
+- **productIds** – Array of product IDs (from tool results and reply). Use only for “View game” links (e.g. `/products/:id`) and for **GET /api/products/:id**; do not display these IDs in the chat.
+- **orderId** – Present when a purchase was completed in this turn. Use for "View order" links (e.g. `/orders/:id`).
+- **invoiceId** – Present when a purchase was completed in this turn. Use for "View invoice" links (e.g. `/orders/:id/invoice` or `/api/invoices/:id`).
+- **thread_id** – Present when a thread was used (server-generated or client-sent). Reuse in subsequent requests to keep the same conversation thread.
+- **user_id** – Present when the user is authenticated; used for long-term memory (preferences). For display or debugging only; do not rely for authorization.
+
+**Streaming response**
+
+To receive the reply as a **Server-Sent Events (SSE)** stream (token-by-token), either:
+
+- Set the request header: **`Accept: text/event-stream`**, or  
+- Add a query parameter: **`?stream=true`** (or `stream=1`).
+
+Same **POST /api/chat** endpoint and body; only the response format changes.
+
+**Response (200)** – `Content-Type: text/event-stream`. Each line is an SSE event. **Tool output (e.g. raw catalog JSON) is never sent**; only the agent’s text is exposed. The stream separates **thinking** (text before the agent calls a tool) from the **answer** (final reply after tool use).
+
+| Event `data` (JSON)      | Description |
+|--------------------------|-------------|
+| `{ "type": "thinking", "content": "…" }` | Optional. Agent text before calling a tool (e.g. “Searching the catalog…”). Use to show a “thinking” state; do not show as the main reply. |
+| `{ "type": "chunk", "content": "…" }` | A piece of the **final answer** only. Append `content` to the displayed reply. |
+| `{ "type": "done", "productIds": ["…"], "message": "…", "orderId": "…", "invoiceId": "…", "thread_id": "…", "user_id": "…" }` | Stream finished. **productIds**: use only for "View game" links (do not show to the user). **message**: optional sanitized full reply (no product IDs or exact stock numbers); use for display when present. **orderId** / **invoiceId**: present when a purchase was completed; use for "View order" / "View invoice" links. **thread_id** / **user_id**: optional; same meaning as non-stream response. |
+| `{ "type": "error", "message": "…" }` | Stream failed (e.g. LLM error). Only sent on server error during stream. |
+
+**Example (streaming)**
+
+```
+data: {"type":"thinking","content":"Searching for RPGs under $30..."}
+data: {"type":"chunk","content":"Here "}
+data: {"type":"chunk","content":"are some RPGs under $30: The Witcher 3 (product id: 698b1e2a82d35cab4bb1b1eb) is on sale at $29.99."}
+data: {"type":"done","productIds":["698b1e2a82d35cab4bb1b1eb"]}
+```
+
+**Frontend (streaming):** Use `fetch()` with `Accept: text/event-stream` and `Authorization: Bearer <token>`. Parse each `data:` line as JSON: show `thinking` only in a “thinking” state (or hide it); append `chunk` to build the answer. On `done`: use **productIds** only for "View game" links (do not display them); if **message** is present, use it as the final display text (sanitized: no product IDs or exact stock numbers). Raw tool data is never included in the stream.
+
+### Get chat history
+
+| Method | Path              | Auth |
+|--------|-------------------|------|
+| GET    | `/api/chat/history` | Yes  |
+
+Returns messages for a thread. Query: `thread_id` (optional, default: `{user_id}-chat`), `limit` (optional, default: 20, max: 50). Response: `{ "messages": [{ "role", "content", "createdAt" }], "thread_id" }`.
+
+### List chat threads
+
+| Method | Path               | Auth |
+|--------|--------------------|------|
+| GET    | `/api/chat/threads` | Yes  |
+
+Returns threads with at least one message. Response: `{ "threads": [{ "threadId", "lastMessageAt" }] }`.
+
+**Guardrails**
+
+- Input is checked for prompt-injection patterns, PII/abuse phrases, and length. Blocked messages return **400** with a generic safety message; the LLM is not called.
+- The agent’s system prompt restricts answers to catalog/reviews only; it refuses account, order, or other-user questions.
+
+**Frontend usage**
+
+1. On chat load: call **GET /api/chat/history** to restore previous messages; use `?thread_id=...` for a specific thread.
+2. Call **POST /api/chat** with `{ "message": "..." }` and the user's JWT. Include `thread_id` in the body to continue a thread.
+3. Display `data.message` in the chat UI.
+4. For each id in `data.productIds`, show a link to the product page (e.g. `/products/698c2768a7dee4fffd793738`).
+5. On the product page, use **GET /api/products/:id** for full details and **GET /api/products/:id/reviews** for the review list.
+6. For multi-thread support: call **GET /api/chat/threads** to list threads; pass `threadId` as `thread_id` when sending messages.
+
+**Error (400)** – Validation or guardrail (empty message, too long, or blocked content)
+
+```json
+{
+  "success": false,
+  "message": "Message could not be processed. Please ask about games, listings, or reviews."
+}
+```
+
+**Error (401)** – Missing or invalid token.
+
 ---
 
 ## Invoices
@@ -1608,7 +1966,7 @@ Returns any invoice by ID.
 |--------|------------------------|-------|
 | GET    | `/api/admin/analytics` | Admin |
 
-Returns dashboard metrics and chart data: overview KPIs, revenue and orders by period, top products, sales by platform/genre, review metrics, and user growth. One request returns all sections; optional `from`/`to` scope time-bound metrics (default last 30 days for time-series).
+Returns dashboard metrics and chart data: overview KPIs, revenue and orders by period, top products, sales by platform/genre, review metrics, user growth, and LLM analytics (token usage by agent and provider). One request returns all sections; optional `from`/`to` scope time-bound metrics (default last 30 days for time-series).
 
 **Query parameters**
 
@@ -1658,7 +2016,25 @@ Returns dashboard metrics and chart data: overview KPIs, revenue and orders by p
     "reviewMetrics": { "totalReviews": 200, "averageRating": 4.2 },
     "userGrowth": [
       { "date": "2026-02-01", "count": 2 }
-    ]
+    ],
+    "llmAnalytics": {
+      "overview": {
+        "totalRequests": 150,
+        "totalInputTokens": 45000,
+        "totalOutputTokens": 12000,
+        "totalTokens": 57000,
+        "byAgent": [
+          { "agentType": "games-qa", "requests": 140, "inputTokens": 42000, "outputTokens": 11000, "totalTokens": 53000 },
+          { "agentType": "game-creation", "requests": 10, "inputTokens": 3000, "outputTokens": 1000, "totalTokens": 4000 }
+        ],
+        "byProvider": [
+          { "provider": "groq", "requests": 150, "inputTokens": 45000, "outputTokens": 12000, "totalTokens": 57000 }
+        ]
+      },
+      "usageByPeriod": [
+        { "date": "2026-02-01", "requests": 25, "inputTokens": 8000, "outputTokens": 2000, "totalTokens": 10000 }
+      ]
+    }
   }
 }
 ```
@@ -1666,6 +2042,7 @@ Returns dashboard metrics and chart data: overview KPIs, revenue and orders by p
 - **Revenue:** From orders with `paymentStatus: 'paid'`; time bucketing uses `paidAt` when present, else `createdAt`.
 - **ordersByPeriod:** All order statuses, bucketed by `createdAt`.
 - **salesByPlatform** / **salesByGenre:** `orderCount` is the number of order line items in that platform/genre.
+- **llmAnalytics:** LLM usage (Games Q&A chat + game-creation agent). `overview` has totals and breakdown by agent and provider; `usageByPeriod` is token usage over time. Data is recorded when agents call the LLM; empty until first chat or game-creation request.
 
 ---
 
@@ -1714,6 +2091,14 @@ Returns dashboard metrics and chart data: overview KPIs, revenue and orders by p
 | GET | `/api/payments/:id` | Yes | Payments |
 | POST | `/api/payments/:id/confirm` | Yes | Payments |
 | GET | `/api/events/recent-purchases` | No | Events (SSE) |
+| GET | `/api/events/my-alerts` | Yes | Events (SSE) |
+| GET | `/api/alerts` | Yes | Alerts |
+| POST | `/api/alerts` | Yes | Alerts |
+| DELETE | `/api/alerts/:id` | Yes | Alerts |
+| GET | `/api/notifications` | Yes | Notifications |
+| PATCH | `/api/notifications/read` | Yes | Notifications |
+| PATCH | `/api/notifications/read-all` | Yes | Notifications |
+| POST | `/api/chat` | Yes | Chat (Games Q&A) |
 | GET | `/api/invoices/:id` | Yes | Invoices |
 | GET | `/api/admin/analytics` | Yes (admin) | Admin |
 | GET | `/api/admin/orders` | Yes (admin) | Admin |
@@ -1745,6 +2130,7 @@ Returns dashboard metrics and chart data: overview KPIs, revenue and orders by p
 ## Enums / constants
 
 - **User roles:** `user`, `admin`, `manager`
+- **Alert trigger types:** `on_sale`, `available`, `price_drop`, `price_below`
 - **Product platform:** `PC`, `PS5`, `XBOX`, `SWITCH`
 - **Order status:** `pending`, `completed`, `cancelled`
 - **Order payment status:** `unpaid`, `pending`, `paid`, `failed`, `refunded`

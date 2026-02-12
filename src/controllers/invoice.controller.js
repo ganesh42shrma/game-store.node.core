@@ -8,15 +8,9 @@ async function getInvoiceByOrderId(req, res, next) {
             req.user.id
         );
         if (!invoice) {
-            return res.status(404).json({
-                success: false,
-                message: "Invoice not found for this order",
-            });
+            return res.sendError("Invoice not found for this order", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: invoice,
-        });
+        res.success(invoice);
     } catch (error) {
         next(error);
     }
@@ -30,15 +24,9 @@ async function getInvoice(req, res, next) {
             false
         );
         if (!invoice) {
-            return res.status(404).json({
-                success: false,
-                message: "Invoice not found",
-            });
+            return res.sendError("Invoice not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: invoice,
-        });
+        res.success(invoice);
     } catch (error) {
         next(error);
     }
@@ -47,15 +35,11 @@ async function getInvoice(req, res, next) {
 async function listInvoices(req, res, next) {
     try {
         const result = await invoiceService.listInvoices(req.query);
-        res.status(200).json({
-            success: true,
-            data: result.invoices,
-            meta: {
-                total: result.total,
-                page: result.page,
-                limit: result.limit,
-                totalPages: result.totalPages,
-            },
+        res.paginated(result.invoices, {
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+            totalPages: result.totalPages,
         });
     } catch (error) {
         next(error);
@@ -70,15 +54,9 @@ async function getInvoiceAdmin(req, res, next) {
             true
         );
         if (!invoice) {
-            return res.status(404).json({
-                success: false,
-                message: "Invoice not found",
-            });
+            return res.sendError("Invoice not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: invoice,
-        });
+        res.success(invoice);
     } catch (error) {
         next(error);
     }
@@ -91,15 +69,9 @@ async function updateInvoice(req, res, next) {
             req.body
         );
         if (!invoice) {
-            return res.status(404).json({
-                success: false,
-                message: "Invoice not found",
-            });
+            return res.sendError("Invoice not found", 404);
         }
-        res.status(200).json({
-            success: true,
-            data: invoice,
-        });
+        res.success(invoice);
     } catch (error) {
         next(error);
     }

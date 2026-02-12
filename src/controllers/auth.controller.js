@@ -5,15 +5,9 @@ async function register(req, res, next) {
         const { name, email, password } = req.body;
         const result = await authService.register(name, email, password);
         if (result && result.conflict) {
-            return res.status(409).json({
-                success: false,
-                message: "Email already registered",
-            });
+            return res.sendError("Email already registered", 409);
         }
-        res.status(201).json({
-            success: true,
-            data: result,
-        });
+        res.created(result);
     } catch (error) {
         next(error);
     }
@@ -24,15 +18,9 @@ async function login(req, res, next) {
         const { email, password } = req.body;
         const result = await authService.login(email, password);
         if (!result) {
-            return res.status(401).json({
-                success: false,
-                message: "Invalid credentials",
-            });
+            return res.sendError("Invalid credentials", 401);
         }
-        res.status(200).json({
-            success: true,
-            data: result,
-        });
+        res.success(result);
     } catch (error) {
         next(error);
     }
