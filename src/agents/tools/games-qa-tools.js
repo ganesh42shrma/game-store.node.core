@@ -597,14 +597,62 @@ const add_to_cart = tool(
   }
 );
 
-/** Check if user message contains address + payment confirmation. */
+/** Matches 24-char hex (ObjectId) anywhere in string; OBJECT_ID_REGEX requires exact match. */
+const OBJECT_ID_IN_STRING = /[a-fA-F0-9]{24}/;
+
+/**
+ * Check if user message contains address + payment confirmation.
+ * Accepts: "Home, UPI", "69871e11a8dc56917a984a38, mock_upi", "default address and UPI", etc.
+ */
 function hasAddressAndPaymentConfirmation(userMsg) {
   if (!userMsg || typeof userMsg !== "string") return false;
   const m = String(userMsg).toLowerCase();
-  const hasAddress = /\b(default|home|address|1\b|2\b|first|second)\b/.test(m) || OBJECT_ID_REGEX.test(m);
+  const hasAddress =
+    /\b(default|home|address|1\b|2\b|first|second)\b/.test(m) ||
+    OBJECT_ID_REGEX.test(m) ||
+    OBJECT_ID_IN_STRING.test(m);
   const hasPayment = /\b(upi|card|netbanking|mock_upi|mock_card|mock_netbanking)\b/.test(m);
   return hasAddress && hasPayment;
 }
+
+/**
+ * Get order status. Use when user asks about order confirmation or status. order_id = 24-char hex from buy_for_me reply.
+ */
+const get_order = tool(
+  async ({ order_id, user_id }) => {
+    const ts = new Date().toISOString();
+    logger.info("[games-qa] Tool get_order called", { ts, order_id, user_id });
+    try {
+      if (!OBJECT_ID_REGEX.test(order_id)) {
+        return JSON.stringify({ error: "Invalid order_id. Use 24-char hex from your purchase confirmation.", order_id });
+      }
+      const order = await orderService.getOrderById(order_id, user_id);
+      if (!order) {
+        return JSON.stringify({ error: "Order not found. It may belong to another user or the ID is wrong.", order_id });
+      }
+      const result = {
+        orderId: order._id.toString(),
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        totalAmount: order.totalAmount,
+        items: order.items?.map((i) => ({ title: i.title, quantity: i.quantity, price: i.price })) || [],
+      };
+      logger.info("[games-qa] Tool get_order completed", { ts: new Date().toISOString(), orderId: order_id, status: order.status });
+      return JSON.stringify(result, null, 2);
+    } catch (err) {
+      logger.error("[games-qa] Tool get_order failed", { ts, order_id, user_id, error: err?.message });
+      return JSON.stringify({ error: err?.message || "Failed to fetch order" });
+    }
+  },
+  {
+    name: "get_order",
+    description: "Get order status. Use when user asks 'is the order confirmed?' or about order status. order_id = 24-char hex from your purchase reply (e.g. from buy_for_me). user_id from context.",
+    schema: z.object({
+      order_id: z.string(),
+      user_id: z.string(),
+    }),
+  }
+);
 
 /**
  * Buy product: create order, payment, confirm. Agent must get address_id, payment_method, checkout_scope from user first.
@@ -615,9 +663,21 @@ const buy_for_me = tool(
     const ts = new Date().toISOString();
     const qty = Math.max(1, Math.floor(Number(quantity) || 1));
     const scope = checkout_scope === "full_cart" ? "full_cart" : "single";
-    logger.info("[games-qa] Tool buy_for_me called", { ts, user_id, product_id, address_id, payment_method, quantity: qty, checkout_scope: scope });
+    logger.info("[games-qa] Tool buy_for_me called", {
+      ts,
+      user_id,
+      product_id,
+      address_id,
+      payment_method,
+      quantity: qty,
+      checkout_scope: scope,
+      user_confirmation: user_confirmation ? String(user_confirmation).slice(0, 80) : undefined,
+    });
     try {
       if (!hasAddressAndPaymentConfirmation(user_confirmation)) {
+        logger.warn("[games-qa] buy_for_me CONFIRMATION_REQUIRED", {
+          user_confirmation: user_confirmation ? String(user_confirmation).slice(0, 100) : null,
+        });
         return JSON.stringify({
           error: "User must explicitly confirm address and payment in their message. Ask: 'Which address and payment method would you like to use?' Do not call buy_for_me until user replies with both (e.g. 'default address and UPI').",
           code: "CONFIRMATION_REQUIRED",
@@ -738,5 +798,6 @@ module.exports = {
   get_user_cart,
   get_payment_options,
   add_to_cart,
+  get_order,
   buy_for_me,
 };

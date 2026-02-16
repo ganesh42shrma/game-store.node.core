@@ -110,12 +110,13 @@ function extractProductIdsFromText(text) {
   return [...ids];
 }
 
-/** Tool names that may appear in malformed XML-style output. */
-const TOOL_TAG_NAMES = "create_alert|list_products|buy_for_me|add_to_cart|get_product|get_user_addresses|get_user_cart|get_payment_options";
+/** Tool names that may appear in malformed XML-style output (model emits as text instead of invoking). */
+const TOOL_TAG_NAMES = "create_alert|list_alerts|list_products|buy_for_me|add_to_cart|get_product|get_order|get_user_addresses|get_user_cart|get_payment_options";
 
 /** Friendly replacements when model emits tool call as text instead of invoking the tool. */
 const MALFORMED_TAG_REPLACEMENTS = {
   create_alert: "I've created your alert. You'll be notified when it goes on sale.",
+  list_alerts: "I wasn't able to fetch your alerts. Please try asking again.",
   buy_for_me: "I've processed your purchase.",
   add_to_cart: "I've added that to your cart.",
 };

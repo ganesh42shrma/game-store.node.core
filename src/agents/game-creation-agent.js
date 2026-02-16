@@ -30,10 +30,19 @@ const llm = groqKey
       temperature: 0,
     });
 
-const agent = createAgent({
-  model: llm,
-  tools: [findGameByTitle, searchWeb, searchImages, uploadToS3, updateGameProduct, createGameProduct],
-  systemPrompt: `You are an admin assistant that adds or enriches games in the store.
+/**
+ * Create the Game Creation agent, optionally with extra tools (e.g. handoff tools for swarm).
+ * @param {{ extraTools?: Array<import("@langchain/core/tools").StructuredToolInterface> }} [options] - extraTools: tools to add (e.g. createHandoffTool to hand back to Games Q&A)
+ * @returns {ReturnType<typeof createAgent>}
+ */
+function createGameCreationAgent(options = {}) {
+  const { extraTools = [] } = options;
+  const tools = [findGameByTitle, searchWeb, searchImages, uploadToS3, updateGameProduct, createGameProduct, ...extraTools];
+  return createAgent({
+    model: llm,
+    tools,
+    name: "GameCreation",
+    systemPrompt: `You are an admin assistant that adds or enriches games in the store.
 
 CRITICAL: Always do this in order.
 
@@ -62,7 +71,11 @@ RULES:
 - Never call create_game_product more than once per request.
 - Never update or set stock in any tool.
 - When search_web or search_images fail (e.g. 403): use the LLM's knowledge only for description, genre, platform, price, shortDescription. Do NOT add youtubeLinks. Do NOT set coverImage unless upload_to_s3 succeeded.`,
-});
+  });
+}
+
+/** Default agent (no handoff tools). For swarm use, call createGameCreationAgent({ extraTools: [createHandoffTool(...)] }). */
+const agent = createGameCreationAgent();
 
 async function runGameCreationAgent(gameName) {
   const provider = process.env.GROQ_API_KEY ? "Groq" : "Gemini";
@@ -80,4 +93,4 @@ async function runGameCreationAgent(gameName) {
   return result;
 }
 
-module.exports = { agent, runGameCreationAgent };
+module.exports = { agent, createGameCreationAgent, runGameCreationAgent };

@@ -1691,14 +1691,15 @@ Sends the user’s message to the games Q&A agent. The agent can list products, 
 
 **Request body**
 
-| Field     | Type   | Required | Rules                                      |
-|-----------|--------|----------|--------------------------------------------|
-| message   | string | Yes      | Non-empty; max 2000 characters             |
-| thread_id | string | No       | Conversation thread id; when omitted and user is logged in, server uses `{user_id}-chat` for short-term session. Send the same value to keep a coherent thread. |
+| Field       | Type    | Required | Rules                                      |
+|-------------|---------|----------|--------------------------------------------|
+| message     | string  | Yes      | Non-empty; max 2000 characters             |
+| thread_id   | string  | No       | Conversation thread id; when omitted and user is logged in, server uses `{user_id}-chat`. Send the same value to keep a coherent thread. |
+| new_chat    | boolean | No       | When `true`, starts a fresh conversation: no history is loaded, a new thread id is created and returned. Use for "New chat" / "Clear context". |
 
 When the user is **authenticated**, the agent has **long-term memory** per user: it can remember preferences (e.g. budget, favorite genre, platform) via tools and use them to personalize answers. The agent can also **create product alerts** when the user says e.g. “Notify me when Elden Ring is on sale”, “Tell me when this game drops below ₹2000”, or “Tell me when it’s available”; use **GET /api/alerts** to list and **DELETE /api/alerts/:id** to remove. The agent can **add to cart** ("Add X to cart") and **buy** ("Buy X" or "Purchase X"): it confirms once before executing, asks which address (from **GET /api/addresses**) and payment method (Card, UPI, or Net Banking), and asks whether to buy only that game or checkout the entire cart. If the user has no addresses, the agent tells them to add one first. The server injects the current user id for memory; the client may send **thread_id** to align with a specific conversation thread.
 
-**Chat history** is persisted per user and thread. Each message (user and assistant) is saved to the database. The agent receives the last 20 messages of the thread as context. Use **GET /api/chat/history** to load previous messages when the user opens a chat; use **GET /api/chat/threads** to list a user's conversation threads.
+**Chat history** is persisted per user and thread. Each message (user and assistant) is saved to the database. The agent receives the last 10 messages of the thread as context (configurable via `AGENT_HISTORY_LIMIT`). Long messages are truncated to save tokens. Use **GET /api/chat/history** to load previous messages when the user opens a chat; use **GET /api/chat/threads** to list a user's conversation threads. To start a fresh conversation (clear context), send `new_chat: true` in the request body; the server returns a new `thread_id` to use for follow-up messages. Each user is limited to 3 threads; starting a new one when at the limit deletes the oldest thread.
 
 **Example**
 
@@ -1714,6 +1715,15 @@ With optional thread (e.g. for resuming a session):
 {
   "message": "Recommend something under $50",
   "thread_id": "user123-chat"
+}
+```
+
+To start a fresh conversation (clear context, e.g. "New chat" button):
+
+```json
+{
+  "message": "Hi, what's on sale?",
+  "new_chat": true
 }
 ```
 
@@ -1781,7 +1791,23 @@ Returns messages for a thread. Query: `thread_id` (optional, default: `{user_id}
 |--------|--------------------|------|
 | GET    | `/api/chat/threads` | Yes  |
 
-Returns threads with at least one message. Response: `{ "threads": [{ "threadId", "lastMessageAt" }] }`.
+Returns threads with at least one message. Response: `{ "threads": [{ "threadId", "lastMessageAt", "title" }] }`. **title** is LLM-generated from the first message by default; users can rename via **PATCH /api/chat/threads/:threadId**. May be null for new threads. Each user is limited to 3 threads; the oldest is deleted when a new one is started.
+
+### Delete a chat thread
+
+| Method | Path                        | Auth |
+|--------|-----------------------------|------|
+| DELETE | `/api/chat/threads/:threadId` | Yes  |
+
+Deletes a thread and all its messages for the authenticated user. Only the thread owner can delete it. Response: `{ "deleted": true, "deletedCount": 5 }` where `deletedCount` is the number of messages removed.
+
+### Rename a chat thread
+
+| Method | Path                        | Auth |
+|--------|-----------------------------|------|
+| PATCH  | `/api/chat/threads/:threadId` | Yes  |
+
+Renames a thread. By default, thread titles are LLM-generated from the first message; users can override with a custom name. Request body: `{ "title": "My custom name" }`. Title is trimmed and limited to 100 characters. Response: `{ "updated": true, "title": "My custom name" }`. Returns 404 if the thread does not exist or does not belong to the user.
 
 **Guardrails**
 
@@ -1796,6 +1822,9 @@ Returns threads with at least one message. Response: `{ "threads": [{ "threadId"
 4. For each id in `data.productIds`, show a link to the product page (e.g. `/products/698c2768a7dee4fffd793738`).
 5. On the product page, use **GET /api/products/:id** for full details and **GET /api/products/:id/reviews** for the review list.
 6. For multi-thread support: call **GET /api/chat/threads** to list threads; pass `threadId` as `thread_id` when sending messages.
+7. To clear context and start fresh: send `new_chat: true` with the message; use the returned `thread_id` for subsequent messages in that conversation.
+8. To delete a thread: call **DELETE /api/chat/threads/:threadId** with the thread id from the threads list.
+9. To rename a thread: call **PATCH /api/chat/threads/:threadId** with body `{ "title": "Custom name" }`. Titles are LLM-generated by default; users can override.
 
 **Error (400)** – Validation or guardrail (empty message, too long, or blocked content)
 
@@ -2099,6 +2128,8 @@ Returns dashboard metrics and chart data: overview KPIs, revenue and orders by p
 | PATCH | `/api/notifications/read` | Yes | Notifications |
 | PATCH | `/api/notifications/read-all` | Yes | Notifications |
 | POST | `/api/chat` | Yes | Chat (Games Q&A) |
+| DELETE | `/api/chat/threads/:threadId` | Yes | Delete chat thread |
+| PATCH | `/api/chat/threads/:threadId` | Yes | Rename chat thread |
 | GET | `/api/invoices/:id` | Yes | Invoices |
 | GET | `/api/admin/analytics` | Yes (admin) | Admin |
 | GET | `/api/admin/orders` | Yes (admin) | Admin |

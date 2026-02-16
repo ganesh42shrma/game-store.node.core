@@ -17,9 +17,11 @@ const {
   get_user_cart,
   get_payment_options,
   add_to_cart,
+  get_order,
   buy_for_me,
 } = require("./tools/games-qa-tools");
 const llmUsageService = require("../services/llmUsage.service");
+const { replaceMalformedToolTags } = require("../utils/chatGuardrails");
 const logger = require("../config/logger");
 
 const PROVIDER = process.env.GROQ_API_KEY ? "groq" : "gemini";
@@ -129,8 +131,11 @@ const llm = groqKey
     temperature: 0.2,
   });
 
-const GAMES_QA_SYSTEM_PROMPT = `Game store assistant. Games, stock, prices, reviews, cart, purchase. Use tools only; no raw tags.
-TOOL CALLS: Use standard JSON format. Never use XML tags or embed arguments in the tool name.
+const GAMES_QA_SYSTEM_PROMPT = `You are Arcade, the game store assistant—friendly, casual, and genuinely into games. You talk like a helpful friend who happens to work at the store: warm, a bit playful, never stiff or robotic. Keep replies concise. Light emojis are fine when they fit. You're here to help with games, stock, prices, reviews, cart, and purchases.
+
+WHEN NOT TO USE TOOLS: For simple greetings ("Hi", "Hello", "Hey", "What's up") or small talk, reply briefly and warmly—do NOT call any tools. Don't bring up alerts, cart, or other topics from earlier in the chat unless the user's current message asks for them. For order confirmation: if you just completed a purchase in this conversation and the user asks "is the order confirmed?" or similar, use get_order with the order ID from your purchase reply—do NOT call prefs, cart, or list_products.
+
+TOOL CALLS: Invoke tools via the tool-calling API. Never output <toolname>{...}</toolname> or XML-like syntax as text. Use standard JSON format only.
 
 SCOPE: platform PC/PS5/XBOX/SWITCH, genre. Stock: in stock/low/out only. No product IDs or counts in replies.
 MEMORY: user_id in context → prefs/save_pref. Save when user states genre, budget, platform.
@@ -151,8 +156,29 @@ const GAMES_QA_TOOLS = [
   get_user_cart,
   get_payment_options,
   add_to_cart,
+  get_order,
   buy_for_me,
 ];
+
+/**
+ * Create the Games Q&A agent, optionally with extra tools (e.g. handoff tools for swarm).
+ * @param {{ extraTools?: Array<import("@langchain/core/tools").StructuredToolInterface> }} [options] - extraTools: tools to add (e.g. createHandoffTool for Game Creation)
+ * @returns {ReturnType<typeof createAgent>}
+ */
+function createGamesQAAgent(options = {}) {
+  const { extraTools = [] } = options;
+  const tools = [...GAMES_QA_TOOLS, ...extraTools];
+  return createAgent({
+    model: llm,
+    tools,
+    systemPrompt: GAMES_QA_SYSTEM_PROMPT,
+    name: "GamesQA",
+    middleware: [
+      modelRetryMiddleware({ maxRetries: 2, retryOn: isToolUseFailedError }),
+      modelFallbackMiddleware(...fallbackModels),
+    ],
+  });
+}
 
 function isToolUseFailedError(err) {
   if (!err || typeof err !== "object") return false;
@@ -168,15 +194,8 @@ function isToolUseFailedError(err) {
 const fallbackModels = ["groq:llama-3.1-8b-instant"];
 if (process.env.GOOGLE_API_KEY) fallbackModels.push("google-genai:gemini-2.0-flash");
 
-const agent = createAgent({
-  model: llm,
-  tools: GAMES_QA_TOOLS,
-  systemPrompt: GAMES_QA_SYSTEM_PROMPT,
-  middleware: [
-    modelRetryMiddleware({ maxRetries: 2, retryOn: isToolUseFailedError }),
-    modelFallbackMiddleware(...fallbackModels),
-  ],
-});
+/** Default agent (no handoff tools). For swarm use, call createGamesQAAgent({ extraTools: [createHandoffTool(...)] }). */
+const agent = createGamesQAAgent();
 
 // Token breakdown (measured with Meta Llama tokenizer for system + user; tool schemas estimated)
 const SYSTEM_PROMPT_TOKENS_LLAMA = 307; // Your measurement with Llama tokenizer
@@ -202,16 +221,37 @@ logger.info("[games-qa] Agent loaded: token breakdown (Llama tokenizer reference
 
 const usageHandler = new UsageLoggingHandler();
 
+/** Max messages to send as context (reduces token usage). */
+const AGENT_HISTORY_LIMIT = Math.max(1, parseInt(process.env.AGENT_HISTORY_LIMIT, 10) || 10);
+
+/** Max chars per history message; longer messages are truncated to save context window. */
+const AGENT_HISTORY_MAX_CHARS = Math.max(100, parseInt(process.env.AGENT_HISTORY_MAX_CHARS, 10) || 500);
+
+/**
+ * Truncate long message content to fit context window.
+ * Keeps the end of the message (most recent/relevant part).
+ */
+function truncateForContext(text, maxChars = AGENT_HISTORY_MAX_CHARS) {
+  if (typeof text !== "string" || text.length <= maxChars) return text;
+  const prefix = "...[truncated]... ";
+  return prefix + text.slice(-(maxChars - prefix.length));
+}
+
 /**
  * Convert stored history (role, content) to LangChain messages.
+ * Limits count and truncates long messages to preserve context window.
  * @param {Array<{ role: string, content: string }>} history
  * @returns {Array<HumanMessage|AIMessage>}
  */
 function historyToMessages(history) {
   if (!Array.isArray(history) || history.length === 0) return [];
-  return history.map((h) => {
-    if (h.role === "assistant") return new AIMessage(h.content);
-    return new HumanMessage(h.content);
+  const limited = history.slice(-AGENT_HISTORY_LIMIT);
+  return limited.map((h) => {
+    let content = h.content || "";
+    if (h.role === "assistant") content = replaceMalformedToolTags(content);
+    content = truncateForContext(content);
+    if (h.role === "assistant") return new AIMessage(content);
+    return new HumanMessage(content);
   });
 }
 
@@ -229,7 +269,7 @@ async function runGamesQAAgent(userMessage, options = {}) {
   const humanContent = userId ? `user_id: ${userId}\n\n${userMessage}` : userMessage;
   const messages = [...historyMessages, new HumanMessage(humanContent)];
 
-  const config = { callbacks: [usageHandler] };
+  const config = { callbacks: [usageHandler], recursionLimit: 15 };
   if (threadId) {
     config.configurable = { thread_id: threadId };
   }
@@ -261,7 +301,7 @@ async function runGamesQAAgentStream(userMessage, options = {}) {
   const humanContent = userId ? `user_id: ${userId}\n\n${userMessage}` : userMessage;
   const messages = [...historyMessages, new HumanMessage(humanContent)];
 
-  const streamConfig = { streamMode: "messages", callbacks: [usageHandler] };
+  const streamConfig = { streamMode: "messages", callbacks: [usageHandler], recursionLimit: 15 };
   if (threadId) {
     streamConfig.configurable = { thread_id: threadId };
   }
@@ -271,4 +311,37 @@ async function runGamesQAAgentStream(userMessage, options = {}) {
   return stream;
 }
 
-module.exports = { agent, runGamesQAAgent, runGamesQAAgentStream, historyToMessages };
+/**
+ * Generate a short thread title from the first user message. One-line, max ~6 words.
+ * @param {string} firstUserMessage - First message in the thread
+ * @returns {Promise<string|null>} Generated title or null on failure
+ */
+async function generateThreadTitle(firstUserMessage) {
+  if (!firstUserMessage || typeof firstUserMessage !== "string") return null;
+  const trimmed = firstUserMessage.trim().slice(0, 300);
+  if (!trimmed) return null;
+  try {
+    const res = await llm.invoke([
+      {
+        role: "user",
+        content: `Generate a short chat title (max 6 words, one line) for a game store conversation that started with: "${trimmed}"\n\nReply with ONLY the title, no quotes or punctuation.`,
+      },
+    ]);
+    const text = typeof res?.content === "string" ? res.content : String(res?.content ?? "").trim();
+    const title = text.slice(0, 80).replace(/["']/g, "").trim();
+    return title || null;
+  } catch (err) {
+    logger.warn("[games-qa] Thread title generation failed", { error: err?.message });
+    return null;
+  }
+}
+
+module.exports = {
+  agent,
+  createGamesQAAgent,
+  runGamesQAAgent,
+  runGamesQAAgentStream,
+  historyToMessages,
+  generateThreadTitle,
+  AGENT_HISTORY_LIMIT,
+};

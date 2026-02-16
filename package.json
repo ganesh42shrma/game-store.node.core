@@ -28,6 +28,7 @@
     "@langchain/core": "^1.1.22",
     "@langchain/google-genai": "^2.1.17",
     "@langchain/groq": "^1.1.0",
+    "@langchain/langgraph-swarm": "^1.0.1",
     "@sendgrid/mail": "^8.1.6",
     "axios": "^1.13.5",
     "bcrypt": "^6.0.0",

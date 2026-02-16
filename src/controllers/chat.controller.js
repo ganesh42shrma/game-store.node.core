@@ -1,8 +1,11 @@
 "use strict";
 
 const { isToolMessage } = require("@langchain/core/messages");
-const { runGamesQAAgent, runGamesQAAgentStream, historyToMessages } = require("../agents/games-qa-agent");
+const { runGamesQAAgent, runGamesQAAgentStream, historyToMessages, generateThreadTitle, AGENT_HISTORY_LIMIT } = require("../agents/games-qa-agent");
+const { runGameStoreSwarm, runGameStoreSwarmStream } = require("../agents/game-store-swarm");
+const { runUserSwarm, runUserSwarmStream } = require("../agents/game-store-user-swarm");
 const chatMessageService = require("../services/chatMessage.service");
+const chatThreadService = require("../services/chatThread.service");
 const {
   checkChatGuardrails,
   extractProductIdsFromText,
@@ -71,11 +74,40 @@ function getMessageFromChunk(chunk) {
   return null;
 }
 
+async function generateAndSaveThreadTitle(userId, threadId) {
+  if (!userId || !threadId) return;
+  const hasTitle = await chatThreadService.threadHasTitle(userId, threadId);
+  if (hasTitle) return;
+  const firstMsg = await chatThreadService.getFirstUserMessage(userId, threadId);
+  if (!firstMsg) return;
+  const title = await generateThreadTitle(firstMsg);
+  if (title) await chatThreadService.setThreadTitle(userId, threadId, title);
+}
+
 function wantsStream(req) {
   const accept = (req.headers && req.headers.accept) || "";
   if (accept.includes("text/event-stream")) return true;
   const streamParam = req.query?.stream || req.query?.streaming;
   return streamParam === "true" || streamParam === "1";
+}
+
+/** Use admin swarm (Games Q&A + Game Creation) when user is admin. */
+function useAdminSwarm(req) {
+  if (process.env.SWARM_ENABLED_FOR_ADMIN === "false") return false;
+  return req.user?.role === "admin";
+}
+
+/** Use user swarm (ProductDiscovery, Commerce, Alerts) for non-admin users. Set USER_SWARM_ENABLED=false to disable. */
+function useUserSwarm(req) {
+  if (process.env.USER_SWARM_ENABLED === "false") return false;
+  return req.user?.role !== "admin";
+}
+
+/** Resolve which agent to use: "adminSwarm" | "userSwarm" | "singleAgent" */
+function getAgentMode(req) {
+  if (useAdminSwarm(req)) return "adminSwarm";
+  if (useUserSwarm(req)) return "userSwarm";
+  return "singleAgent";
 }
 
 async function chat(req, res, next) {
@@ -98,13 +130,21 @@ async function chat(req, res, next) {
     });
 
     const userId = req.user?.id ? String(req.user.id) : undefined;
-    const threadId = req.body?.thread_id ?? (userId ? `${userId}-chat` : undefined);
+    const newChat = req.body?.new_chat === true || req.body?.clear_context === true;
+    let threadId = req.body?.thread_id ?? (userId ? `${userId}-chat` : undefined);
+    if (newChat && userId) {
+      threadId = `${userId}-chat-${Date.now()}`;
+    }
 
     let historyMessages = [];
-    if (userId && threadId) {
-      const history = await chatMessageService.getHistory(userId, threadId, { limit: 20 });
+    if (userId && threadId && !newChat) {
+      const history = await chatMessageService.getHistory(userId, threadId, { limit: AGENT_HISTORY_LIMIT });
       historyMessages = historyToMessages(history);
+    }
+    if (userId && threadId) {
+      await chatMessageService.enforceThreadLimit(userId, threadId);
       await chatMessageService.saveMessage(userId, threadId, "user", trimmed);
+      chatThreadService.upsertThread(userId, threadId).catch(() => {});
     }
 
     if (streamMode) {
@@ -142,8 +182,14 @@ async function chat(req, res, next) {
               seenToolMessage = false;
             }
             const streamInvokeStart = Date.now();
-            logger.info("[chat] Agent stream invoke start", { ts: new Date().toISOString(), userId: !!userId, threadId, attempt });
-            const stream = await runGamesQAAgentStream(trimmed, { userId, threadId, historyMessages });
+            const agentMode = getAgentMode(req);
+            logger.info("[chat] Agent stream invoke start", { ts: new Date().toISOString(), userId: !!userId, threadId, attempt, agentMode });
+            const stream =
+              agentMode === "adminSwarm"
+                ? await runGameStoreSwarmStream(trimmed, { userId, threadId, historyMessages })
+                : agentMode === "userSwarm"
+                  ? await runUserSwarmStream(trimmed, { userId, threadId, historyMessages })
+                  : await runGamesQAAgentStream(trimmed, { userId, threadId, historyMessages });
             const streamConsumeStart = Date.now();
             logger.info("[chat] Agent stream consume start", { ts: new Date().toISOString(), setupMs: streamConsumeStart - streamInvokeStart });
             for await (const chunk of stream) {
@@ -193,6 +239,8 @@ async function chat(req, res, next) {
             const sanitizedMessage = sanitizeMessageForDisplay(answerContent);
             if (userId && threadId) {
               await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedMessage);
+              chatThreadService.upsertThread(userId, threadId).catch(() => {});
+              generateAndSaveThreadTitle(userId, threadId).catch(() => {});
             }
             const donePayload = { type: "done", productIds, message: sanitizedMessage };
             if (orderIdFromTools) donePayload.orderId = orderIdFromTools;
@@ -221,7 +269,13 @@ async function chat(req, res, next) {
           });
           try {
             const fallbackStart = Date.now();
-            const result = await runGamesQAAgent(trimmed, { userId, threadId, historyMessages });
+            const agentMode = getAgentMode(req);
+            const result =
+              agentMode === "adminSwarm"
+                ? await runGameStoreSwarm(trimmed, { userId, threadId, historyMessages })
+                : agentMode === "userSwarm"
+                  ? await runUserSwarm(trimmed, { userId, threadId, historyMessages })
+                  : await runGamesQAAgent(trimmed, { userId, threadId, historyMessages });
             let content = result?.content ?? result?.output;
             if (content === undefined && Array.isArray(result?.messages) && result.messages.length > 0) {
               const aiMessages = result.messages.filter((m) => m && typeof m === "object" && !isToolMessage(m) && (m.content !== undefined || m.text));
@@ -253,6 +307,8 @@ async function chat(req, res, next) {
             const sanitizedFallback = sanitizeMessageForDisplay(content);
             if (userId && threadId) {
               await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedFallback);
+              chatThreadService.upsertThread(userId, threadId).catch(() => {});
+              generateAndSaveThreadTitle(userId, threadId).catch(() => {});
             }
             sendEvent({ type: "chunk", content: sanitizedFallback });
             const donePayload = { type: "done", productIds: productIdsFallback, message: sanitizedFallback };
@@ -278,8 +334,14 @@ async function chat(req, res, next) {
     }
 
     const agentStart = Date.now();
-    logger.info("[chat] Agent invoke start", { ts: new Date().toISOString(), userId: !!userId, threadId });
-    const result = await runGamesQAAgent(trimmed, { userId, threadId, historyMessages });
+    const agentMode = getAgentMode(req);
+    logger.info("[chat] Agent invoke start", { ts: new Date().toISOString(), userId: !!userId, threadId, agentMode });
+    const result =
+      agentMode === "adminSwarm"
+        ? await runGameStoreSwarm(trimmed, { userId, threadId, historyMessages })
+        : agentMode === "userSwarm"
+          ? await runUserSwarm(trimmed, { userId, threadId, historyMessages })
+          : await runGamesQAAgent(trimmed, { userId, threadId, historyMessages });
     logger.info("[chat] Agent invoke done", { ts: new Date().toISOString(), durationMs: Date.now() - agentStart });
     let content = result?.content ?? result?.output;
     if (content === undefined && Array.isArray(result?.messages) && result.messages.length > 0) {
@@ -312,6 +374,8 @@ async function chat(req, res, next) {
     const sanitizedMessage = sanitizeMessageForDisplay(content);
     if (userId && threadId) {
       await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedMessage);
+      chatThreadService.upsertThread(userId, threadId).catch(() => {});
+      generateAndSaveThreadTitle(userId, threadId).catch(() => {});
     }
     logger.info("[chat] Request complete", { ts: new Date().toISOString(), durationMs: Date.now() - requestStart, stream: false });
     const data = { message: sanitizedMessage, productIds };
@@ -351,10 +415,53 @@ async function getThreads(req, res, next) {
       return res.sendError("Authentication required", 401);
     }
     const threads = await chatMessageService.getThreads(userId);
-    res.success({ threads });
+    const threadsWithTitles = await chatThreadService.enrichThreadsWithTitles(userId, threads);
+    res.success({ threads: threadsWithTitles });
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { chat, getHistory, getThreads };
+async function deleteThread(req, res, next) {
+  try {
+    const userId = req.user?.id ? String(req.user.id) : null;
+    if (!userId) {
+      return res.sendError("Authentication required", 401);
+    }
+    const threadId = req.params?.threadId?.trim();
+    if (!threadId) {
+      return res.sendError("Thread ID required", 400);
+    }
+    const { deletedCount } = await chatMessageService.deleteThread(userId, threadId);
+    res.success({ deleted: true, deletedCount });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function renameThread(req, res, next) {
+  try {
+    const userId = req.user?.id ? String(req.user.id) : null;
+    if (!userId) {
+      return res.sendError("Authentication required", 401);
+    }
+    const threadId = req.params?.threadId?.trim();
+    if (!threadId) {
+      return res.sendError("Thread ID required", 400);
+    }
+    const title = req.body?.title ?? req.body?.name;
+    if (!title || typeof title !== "string" || !String(title).trim()) {
+      return res.sendError("Title is required", 400);
+    }
+    const history = await chatMessageService.getHistory(userId, threadId, { limit: 1 });
+    if (history.length === 0) {
+      return res.sendError("Thread not found", 404);
+    }
+    const { updated } = await chatThreadService.renameThread(userId, threadId, title);
+    res.success({ updated, title: String(title).trim().slice(0, 100) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { chat, getHistory, getThreads, deleteThread, renameThread };
