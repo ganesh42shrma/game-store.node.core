@@ -1757,25 +1757,30 @@ To receive the reply as a **Server-Sent Events (SSE)** stream (token-by-token), 
 
 Same **POST /api/chat** endpoint and body; only the response format changes.
 
-**Response (200)** – `Content-Type: text/event-stream`. Each line is an SSE event. **Tool output (e.g. raw catalog JSON) is never sent**; only the agent’s text is exposed. The stream separates **thinking** (text before the agent calls a tool) from the **answer** (final reply after tool use).
+**Response (200)** – `Content-Type: text/event-stream`. Each line is an SSE event. **Tool output (e.g. raw catalog JSON) is never sent**; only the agent’s text is exposed. The stream emits **thinking** events (status updates like "Browsing catalog...") and **chunk** events (parts of the final text reply).
 
 | Event `data` (JSON)      | Description |
 |--------------------------|-------------|
-| `{ "type": "thinking", "content": "…" }` | Optional. Agent text before calling a tool (e.g. “Searching the catalog…”). Use to show a “thinking” state; do not show as the main reply. |
-| `{ "type": "chunk", "content": "…" }` | A piece of the **final answer** only. Append `content` to the displayed reply. |
+| `{ "type": "thinking", "message": "…" }` | Status update (e.g. “Browsing the catalog…”, “Checking stock…”). Show this in a loading indicator; do not append to the chat history. |
+| `{ "type": "chunk", "content": "…" }` | A piece of the **final answer**. Append `content` to the displayed reply. |
 | `{ "type": "done", "productIds": ["…"], "message": "…", "orderId": "…", "invoiceId": "…", "thread_id": "…", "user_id": "…" }` | Stream finished. **productIds**: use only for "View game" links (do not show to the user). **message**: optional sanitized full reply (no product IDs or exact stock numbers); use for display when present. **orderId** / **invoiceId**: present when a purchase was completed; use for "View order" / "View invoice" links. **thread_id** / **user_id**: optional; same meaning as non-stream response. |
 | `{ "type": "error", "message": "…" }` | Stream failed (e.g. LLM error). Only sent on server error during stream. |
 
 **Example (streaming)**
 
 ```
-data: {"type":"thinking","content":"Searching for RPGs under $30..."}
-data: {"type":"chunk","content":"Here "}
-data: {"type":"chunk","content":"are some RPGs under $30: The Witcher 3 (product id: 698b1e2a82d35cab4bb1b1eb) is on sale at $29.99."}
-data: {"type":"done","productIds":["698b1e2a82d35cab4bb1b1eb"]}
+data: {"type":"thinking","message":"Browsing the catalog..."}
+data: {"type":"thinking","message":"Reading reviews for Hades..."}
+data: {"type":"chunk","content":"Hades "}
+data: {"type":"chunk","content":"is currently in stock and highly rated."}
+data: {"type":"done","productIds":["698b1e2a82d35cab4bb1b1eb"], "message": "Hades is currently in stock and highly rated."}
 ```
 
-**Frontend (streaming):** Use `fetch()` with `Accept: text/event-stream` and `Authorization: Bearer <token>`. Parse each `data:` line as JSON: show `thinking` only in a “thinking” state (or hide it); append `chunk` to build the answer. On `done`: use **productIds** only for "View game" links (do not display them); if **message** is present, use it as the final display text (sanitized: no product IDs or exact stock numbers). Raw tool data is never included in the stream.
+**Frontend (streaming):** Use `fetch()` with `Accept: text/event-stream` and `Authorization: Bearer <token>`. Parse each `data:` line as JSON:
+- **thinking**: Update your UI's loading/status indicator with `data.message`.
+- **chunk**: Append `data.content` to the chat bubble.
+- **done**: stream complete. Hide loading indicator. Use `productIds` for links.
+- **error**: Handle error.
 
 ### Get chat history
 

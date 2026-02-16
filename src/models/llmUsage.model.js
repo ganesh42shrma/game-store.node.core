@@ -9,7 +9,7 @@ const llmUsageSchema = new mongoose.Schema(
   {
     agentType: {
       type: String,
-      enum: ["games-qa", "game-creation"],
+      enum: ["games-qa", "game-creation", "game-store-swarm", "game-store-user-swarm"],
       required: true,
       index: true,
     },

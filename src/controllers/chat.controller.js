@@ -144,7 +144,7 @@ async function chat(req, res, next) {
     if (userId && threadId) {
       await chatMessageService.enforceThreadLimit(userId, threadId);
       await chatMessageService.saveMessage(userId, threadId, "user", trimmed);
-      chatThreadService.upsertThread(userId, threadId).catch(() => {});
+      chatThreadService.upsertThread(userId, threadId).catch(() => { });
     }
 
     if (streamMode) {
@@ -196,18 +196,49 @@ async function chat(req, res, next) {
               const msg = getMessageFromChunk(chunk);
               if (!msg) continue;
 
+              // 1. Handle Tool Calls (Agent deciding to call a tool)
+              if (msg.tool_call_chunks && msg.tool_call_chunks.length > 0) {
+                const toolName = msg.tool_call_chunks[0]?.name;
+                if (toolName) {
+                  // Map technical tool names to user-friendly "Thinking..." messages
+                  const friendlyMap = {
+                    "list_products": "Browsing the catalog...",
+                    "product": "Checking game details...",
+                    "reviews": "Reading reviews...",
+                    "prefs": "Recalling your preferences...",
+                    "save_pref": "Saving your preference...",
+                    "create_alert": "Setting up an alert for you...",
+                    "list_alerts": "Checking your active alerts...",
+                    "get_user_addresses": "Looking up your addresses...",
+                    "get_user_cart": "Checking your cart...",
+                    "add_to_cart": "Adding item to cart...",
+                    "buy_for_me": "Processing your purchase...",
+                    "get_order": "Verifying order status...",
+                    "search_web": "Researching online...",
+                    "search_images": "Finding images...",
+                    "upload_to_s3": "Processing images...",
+                    "update_game_product": "Updating the store...",
+                    "create_game_product": "Adding new game...",
+                    // Handoff tools
+                    "transfer_to_Commerce": "Transferring to checkout...",
+                    "transfer_to_Alerts": "Transferring to alerts...",
+                    "transfer_to_ProductDiscovery": "Returning to store browse...",
+                    "transfer_to_GameCreation": "Opening admin tools...",
+                    "transfer_to_GamesQA": "Returning to main assistant...",
+                  };
+                  const message = friendlyMap[toolName] || "Thinking...";
+                  sendEvent({ type: "thinking", message });
+                }
+              }
+
               if (isToolMessage(msg)) {
+                // This is the OUTPUT of the tool (not the call itself)
                 const toolContent = getMessageContent(msg);
                 if (toolContent) {
                   for (const id of extractProductIdsFromToolContent(toolContent)) productIdsFromTools.add(id);
                   const { orderId, invoiceId } = extractOrderAndInvoiceFromToolContent(toolContent);
                   if (orderId) orderIdFromTools = orderId;
                   if (invoiceId) invoiceIdFromTools = invoiceId;
-                }
-                if (thinkingBuffer.length > 0) {
-                  const thinkingText = thinkingBuffer.join("").trim();
-                  if (thinkingText) sendEvent({ type: "thinking", content: thinkingText });
-                  thinkingBuffer.length = 0;
                 }
                 seenToolMessage = true;
                 continue;
@@ -216,21 +247,24 @@ async function chat(req, res, next) {
               const content = getMessageContent(msg);
               if (!content) continue;
 
-              if (seenToolMessage) {
+              // If we are getting text content, it's the final answer
+              if (seenToolMessage || content.trim().length > 0) {
                 answerContent += content;
                 streamTagFilter.push(content);
-              } else {
-                thinkingBuffer.push(content);
               }
             }
 
             const streamConsumeMs = Date.now() - streamConsumeStart;
             logger.info("[chat] Agent stream consume end", { ts: new Date().toISOString(), durationMs: streamConsumeMs });
 
+            // Flush any remaining text in the filter
             if (thinkingBuffer.length > 0) {
+              // legacy buffer logic, mostly unused now as we stream direct chunks
               const remainder = thinkingBuffer.join("");
-              answerContent += remainder;
-              streamTagFilter.push(remainder);
+              if (remainder) {
+                answerContent += remainder;
+                streamTagFilter.push(remainder);
+              }
             }
             streamTagFilter.flush();
 
@@ -239,8 +273,8 @@ async function chat(req, res, next) {
             const sanitizedMessage = sanitizeMessageForDisplay(answerContent);
             if (userId && threadId) {
               await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedMessage);
-              chatThreadService.upsertThread(userId, threadId).catch(() => {});
-              generateAndSaveThreadTitle(userId, threadId).catch(() => {});
+              chatThreadService.upsertThread(userId, threadId).catch(() => { });
+              generateAndSaveThreadTitle(userId, threadId).catch(() => { });
             }
             const donePayload = { type: "done", productIds, message: sanitizedMessage };
             if (orderIdFromTools) donePayload.orderId = orderIdFromTools;
@@ -307,8 +341,8 @@ async function chat(req, res, next) {
             const sanitizedFallback = sanitizeMessageForDisplay(content);
             if (userId && threadId) {
               await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedFallback);
-              chatThreadService.upsertThread(userId, threadId).catch(() => {});
-              generateAndSaveThreadTitle(userId, threadId).catch(() => {});
+              chatThreadService.upsertThread(userId, threadId).catch(() => { });
+              generateAndSaveThreadTitle(userId, threadId).catch(() => { });
             }
             sendEvent({ type: "chunk", content: sanitizedFallback });
             const donePayload = { type: "done", productIds: productIdsFallback, message: sanitizedFallback };
@@ -374,8 +408,8 @@ async function chat(req, res, next) {
     const sanitizedMessage = sanitizeMessageForDisplay(content);
     if (userId && threadId) {
       await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedMessage);
-      chatThreadService.upsertThread(userId, threadId).catch(() => {});
-      generateAndSaveThreadTitle(userId, threadId).catch(() => {});
+      chatThreadService.upsertThread(userId, threadId).catch(() => { });
+      generateAndSaveThreadTitle(userId, threadId).catch(() => { });
     }
     logger.info("[chat] Request complete", { ts: new Date().toISOString(), durationMs: Date.now() - requestStart, stream: false });
     const data = { message: sanitizedMessage, productIds };
