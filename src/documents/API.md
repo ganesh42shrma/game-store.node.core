@@ -1477,7 +1477,33 @@ What happens server-side:
 - Creates an invoice and emits a recent-purchase SSE event (if configured).
 
 ### Webhooks (recommended)
-- Optional: configure Razorpay webhooks in your Razorpay dashboard and add a secure `POST /api/payments/razorpay/webhook` endpoint to handle async events (`payment.failed`, `payment.captured`, `refund.*`). Verify webhook signatures and reconcile state.
+
+- Configure Razorpay webhooks in the Razorpay dashboard and add a secure `POST /api/payments/razorpay/webhook` endpoint on your server to handle async events (`payment.captured`, `payment.failed`, `refund.*`).
+- The server verifies the `x-razorpay-signature` header using a webhook secret (set `RAZORPAY_WEBHOOK_SECRET` in your environment). Only the server should receive webhooks — do not expose your webhook secret to the client.
+- Webhooks are the reliable, server-to-server channel that ensures your backend learns about payment events even when the client fails to report them (for example, due to network errors or closed tabs).
+
+What to handle server-side via webhooks:
+- `payment.captured`: mark payment captured (idempotent), update `Order` to `paid`/`completed`, generate invoice/send email, emit in-app notification (SSE/WebSocket) to frontend clients if needed.
+- `payment.failed`: mark payment failed, notify user via email/in-app notification, allow retry.
+- `refund.*`: update payment/refund records and order/invoice status accordingly.
+
+Security and reliability:
+- Use a strong webhook secret in Razorpay and set the same value in `RAZORPAY_WEBHOOK_SECRET` on the server (Vercel/production env vars). Verify `x-razorpay-signature` by HMAC-SHA256 over the raw request body.
+- Implement idempotency in the webhook handler (check if the payment/order is already in the desired state before updating).
+- Use retries and logging: Razorpay retries failed webhooks – return non-2xx to trigger retries for transient errors.
+
+Example webhook URL (deployed):
+`https://<your-vercel-deployment>/api/payments/razorpay/webhook`
+
+Frontend usage note (can frontend use the webhook?):
+- No — the webhook endpoint is a server-to-server endpoint intended for Razorpay to call. A browser-based frontend should never be configured as a webhook receiver (it cannot securely hold the webhook secret and is not reliably reachable).
+- How the frontend receives payment state updates:
+  - Primary: client calls `POST /api/payments/razorpay/verify` immediately after a successful Checkout and receives the verification response.
+  - Fallback / reconciliation: if the client fails to call verify (network crash, tab closed), the server webhook will still receive `payment.captured` from Razorpay and update the DB.
+  - Real-time UI: the server can push updates to connected frontends via Server-Sent Events (`/api/events/recent-purchases`) or WebSockets when a webhook is processed — the frontend should subscribe to SSE or WebSocket to get live updates.
+  - Polling: the frontend can poll `GET /api/orders/:id` or `GET /api/payments/:id` to check payment status if real-time push is not used.
+
+Recommendation: have the frontend call `verify` after Checkout and also subscribe to SSE or poll the order status; rely on webhooks for reconciliation.
 
 ### Frontend (Vite + React) integration — minimal flow
 

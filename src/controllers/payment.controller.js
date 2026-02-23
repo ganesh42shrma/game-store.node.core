@@ -1,4 +1,5 @@
 const paymentService = require("../services/payment.service");
+const crypto = require("crypto");
 
 // async function createPayment(req, res, next) {
 //     try {
@@ -101,8 +102,32 @@ async function verifyRazorpayPayment(req, res, next) {
     }
 }
 
+// Razorpay webhook handler
+async function razorpayWebhook(req, res, next) {
+    try {
+        const sigHeader = req.get("x-razorpay-signature") || req.get("X-Razorpay-Signature");
+        const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+        if (!secret) {
+            return res.status(500).send("Webhook secret not configured");
+        }
+
+        const rawBody = req.body; // Buffer from express.raw middleware
+        const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+        if (expected !== sigHeader) {
+            return res.status(400).send("Invalid webhook signature");
+        }
+
+        const payload = JSON.parse(rawBody.toString());
+        await paymentService.handleRazorpayWebhook(payload);
+        res.status(200).send("OK");
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     createRazorpayOrder,
     verifyRazorpayPayment,
     getPayment,
+    razorpayWebhook,
 };

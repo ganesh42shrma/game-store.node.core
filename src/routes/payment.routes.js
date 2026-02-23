@@ -11,6 +11,13 @@ const {
 
 const router = express.Router();
 
+// Expose webhook route before applying auth (webhooks originate from Razorpay)
+router.post(
+    "/razorpay/webhook",
+    express.raw({ type: "application/json" }),
+    paymentController.razorpayWebhook
+);
+
 router.use(authenticateJWT);
 
 // Note: `createPayment` and `confirmPayment` handlers were removed/commented

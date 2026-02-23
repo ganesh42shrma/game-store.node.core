@@ -199,6 +199,70 @@ async function handleRazorpaySuccess({ razorpay_order_id, razorpay_payment_id, r
   return { payment,order };
 }
 
+async function handleRazorpayWebhook(payload) {
+    // payload is the parsed webhook JSON from Razorpay
+    const event = payload.event;
+    try {
+        if (event === "payment.captured") {
+            const entity = payload.payload?.payment?.entity;
+            if (!entity) return;
+            const razorpay_payment_id = entity.id;
+            const razorpay_order_id = entity.order_id;
+
+            // Find payment by various possible stored locations
+            const payment = await Payment.findOneAndUpdate(
+                {
+                    $or: [
+                        { gatewayPaymentId: razorpay_order_id },
+                        { gatewayPaymentId: razorpay_payment_id },
+                        { "metadata.id": razorpay_order_id },
+                        { "metadata.order_id": razorpay_order_id },
+                        { "metadata.razorpay_order_id": razorpay_order_id },
+                    ],
+                },
+                {
+                    status: "captured",
+                    gatewayPaymentId: razorpay_payment_id,
+                    capturedAt: new Date(),
+                    ["metadata.razorpay_order_id"]: razorpay_order_id,
+                    ["metadata.razorpay_payment_id"]: razorpay_payment_id,
+                    method: "razorpay",
+                },
+                { new: true }
+            );
+
+            if (payment) {
+                await Order.findByIdAndUpdate(payment.order, { paymentStatus: "paid", status: "completed", paidAt: new Date(), payment: payment._id });
+                const order = await Order.findById(payment.order).populate("user", "name email").lean();
+                try { await invoiceService.createInvoiceFromOrder(order); } catch (e) { console.warn("Invoice create failed (webhook)", e); }
+                try { recentPurchaseEvents.addRecentPurchase && recentPurchaseEvents.addRecentPurchase({ buyerName: order.user?.name?.split(" ")[0] || "Customer", country: order.billingAddress?.country || "Unknown", productTitles: order.items?.map(i=>i.title), orderId: String(order._id), at: new Date() }); } catch(e){}
+            }
+        } else if (event === "payment.failed") {
+            const entity = payload.payload?.payment?.entity;
+            if (!entity) return;
+            const razorpay_payment_id = entity.id;
+            const razorpay_order_id = entity.order_id;
+            await Payment.findOneAndUpdate(
+                {
+                    $or: [
+                        { gatewayPaymentId: razorpay_order_id },
+                        { gatewayPaymentId: razorpay_payment_id },
+                        { "metadata.id": razorpay_order_id },
+                        { "metadata.order_id": razorpay_order_id },
+                    ],
+                },
+                { status: "failed", gatewayPaymentId: razorpay_payment_id },
+                { new: true }
+            );
+        } else if (event === "order.paid") {
+            // optional: handle order-level events
+        }
+    } catch (e) {
+        console.warn("Error handling Razorpay webhook", e);
+        throw e;
+    }
+}
+
 module.exports = {
     createRazorpayOrder,
     verifyRazorpaySignature,
