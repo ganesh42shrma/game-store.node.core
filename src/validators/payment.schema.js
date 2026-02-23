@@ -12,7 +12,20 @@ const paymentIdParamSchema = z.object({
     id: z.string().regex(objectIdRegex, "Invalid payment ID"),
 });
 
+const createRazorpayOrderSchema = z.object({
+    orderId: z.string().regex(objectIdRegex, "Invalid order ID"),
+});
+
+const verifyRazorpaySchema = z.object({
+    razorpay_order_id: z.string(),
+    razorpay_payment_id: z.string(),
+    razorpay_signature: z.string(),
+    appOrderId: z.string().regex(objectIdRegex, "Invalid order ID"),
+});
+
 module.exports = {
     createPaymentSchema,
     paymentIdParamSchema,
+    createRazorpayOrderSchema,
+    verifyRazorpaySchema,
 };

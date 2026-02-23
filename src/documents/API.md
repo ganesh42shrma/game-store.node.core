@@ -1413,6 +1413,146 @@ There is no real payment gateway; the frontend simulates “redirect to payment�
 
 ---
 
+## Razorpay (real gateway) integration
+
+Use these endpoints to integrate Razorpay Checkout in the storefront. Ensure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are set in your server environment (e.g. `.env`).
+
+Base path: `/api/payments/razorpay`
+
+### Create Razorpay order
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/payments/razorpay/create-order` | Yes |
+
+Creates a Razorpay Order for an existing `Order` in the app.
+
+Request body
+
+```json
+{ "orderId": "<app order id>" }
+```
+
+Response (200)
+
+```json
+{
+  "key": "<RAZORPAY_KEY_ID>",
+  "order": { "id": "order_ABC...", "amount": 14160, "currency": "INR" },
+  "appOrderId": "<app order id>"
+}
+```
+
+Notes:
+- `order.amount` is in paise (integer). Use this when initializing Razorpay Checkout.
+- Backend creates a `Payment` document and stores the Razorpay order id in the payment record.
+
+### Verify / capture Razorpay payment
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/payments/razorpay/verify` | Yes |
+
+Verify the client-side payment success by validating the HMAC signature and marking the order paid.
+
+Request body
+
+```json
+{
+  "razorpay_order_id": "<razorpay order id>",
+  "razorpay_payment_id": "<razorpay payment id>",
+  "razorpay_signature": "<signature>",
+  "appOrderId": "<app order id>"
+}
+```
+
+Response (200)
+
+```json
+{ "success": true, "result": { /* payment + order info */ } }
+```
+
+What happens server-side:
+- Validates HMAC-SHA256 signature using `RAZORPAY_KEY_SECRET`.
+- Updates `Payment` status to `captured`, sets `gatewayPaymentId` to the Razorpay payment id and `capturedAt`.
+- Updates the `Order` to `paymentStatus: "paid"`, `status: "completed"`, sets `paidAt` and links the payment id.
+- Creates an invoice and emits a recent-purchase SSE event (if configured).
+
+### Webhooks (recommended)
+- Optional: configure Razorpay webhooks in your Razorpay dashboard and add a secure `POST /api/payments/razorpay/webhook` endpoint to handle async events (`payment.failed`, `payment.captured`, `refund.*`). Verify webhook signatures and reconcile state.
+
+### Frontend (Vite + React) integration — minimal flow
+
+1. Create an app order via your normal checkout flow (POST `/api/orders`) and obtain `orderId`.
+2. From your React payment page call POST `/api/payments/razorpay/create-order` with `{ orderId }`.
+   - Receive `{ key, order: { id, amount, currency }, appOrderId }`.
+3. Load the Razorpay Checkout script and open the Checkout with these options:
+
+```jsx
+// Minimal React example (call on button click)
+async function startRazorpayCheckout(appOrderId, token, user) {
+  const res = await fetch(`${API_BASE}/api/payments/razorpay/create-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ orderId: appOrderId }),
+  });
+  const data = await res.json();
+  const { key, order } = data;
+
+  const options = {
+    key,
+    amount: order.amount,
+    currency: order.currency,
+    name: 'Game Store',
+    description: `Order ${data.appOrderId}`,
+    order_id: order.id,
+    handler: async function(response){
+      // send to server for verification
+      await fetch(`${API_BASE}/api/payments/razorpay/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+          appOrderId: data.appOrderId,
+        }),
+      });
+      // on success: navigate to order success page
+    },
+    prefill: { email: user?.email, name: user?.name },
+    theme: { color: '#F37254' },
+  };
+
+  const script = document.createElement('script');
+  script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+  script.onload = () => { new window.Razorpay(options).open(); };
+  document.body.appendChild(script);
+}
+```
+
+Notes for frontend:
+- Only the `key` (RAZORPAY_KEY_ID) is public; the secret must remain server-side.
+- The handler receives `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` — always POST these plus your `appOrderId` to `/api/payments/razorpay/verify` for server-side verification.
+- Handle network failures and display appropriate success/error pages to users.
+
+### Quick curl smoke-tests
+
+1. Create order (server must have `RAZORPAY_*` env vars):
+
+```bash
+curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"orderId":"<appOrderId>"}' http://localhost:5000/api/payments/razorpay/create-order
+```
+
+2. Verify (use values returned by Razorpay client after a successful checkout):
+
+```bash
+curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"razorpay_order_id":"<id>","razorpay_payment_id":"<id>","razorpay_signature":"<sig>","appOrderId":"<appOrderId>"}' \
+  http://localhost:5000/api/payments/razorpay/verify
+```
+
+---
+
 ## Events (SSE – recent purchases)
 
 Used to power **"Someone from X just purchased Y"** toast notifications on the storefront. When a payment is confirmed, the server pushes a **recent-purchase** event to all connected SSE clients. This is **real-time push to the browser**, not an outgoing webhook.

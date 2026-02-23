@@ -41,6 +41,7 @@
     "langchain": "^1.2.21",
     "mongoose": "^9.1.5",
     "multer": "^2.0.2",
+    "razorpay": "^2.9.6",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   },

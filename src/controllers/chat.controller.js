@@ -157,6 +157,8 @@ async function chat(req, res, next) {
       let answerContent = "";
       const thinkingBuffer = [];
       let seenToolMessage = false;
+      let lastToolFriendlyMessage = null;
+      let lastToolName = null;
       const streamTagFilter = createStreamTagFilter((chunk) => sendEvent({ type: "chunk", content: chunk }));
       const productIdsFromTools = new Set();
       let orderIdFromTools = null;
@@ -194,11 +196,20 @@ async function chat(req, res, next) {
             logger.info("[chat] Agent stream consume start", { ts: new Date().toISOString(), setupMs: streamConsumeStart - streamInvokeStart });
             for await (const chunk of stream) {
               const msg = getMessageFromChunk(chunk);
+
+              if (msg) {
+                const type = msg.constructor?.name || msg._getType?.() || "Unknown";
+                logger.info("[chat] Stream chunk received", { type, hasContent: !!msg.content, toolCalls: msg.tool_call_chunks?.length });
+              } else {
+                logger.info("[chat] Stream chunk received (null msg)", { chunkIsArray: Array.isArray(chunk), length: chunk?.length });
+              }
+
               if (!msg) continue;
 
               // 1. Handle Tool Calls (Agent deciding to call a tool)
               if (msg.tool_call_chunks && msg.tool_call_chunks.length > 0) {
                 const toolName = msg.tool_call_chunks[0]?.name;
+                logger.info("[chat] Detected tool call chunk", { toolName });
                 if (toolName) {
                   // Map technical tool names to user-friendly "Thinking..." messages
                   const friendlyMap = {
@@ -221,13 +232,29 @@ async function chat(req, res, next) {
                     "create_game_product": "Adding new game...",
                     // Handoff tools
                     "transfer_to_Commerce": "Transferring to checkout...",
+                    "transfer_to_commerce": "Transferring to checkout...",
                     "transfer_to_Alerts": "Transferring to alerts...",
+                    "transfer_to_alerts": "Transferring to alerts...",
                     "transfer_to_ProductDiscovery": "Returning to store browse...",
+                    "transfer_to_productdiscovery": "Returning to store browse...",
                     "transfer_to_GameCreation": "Opening admin tools...",
+                    "transfer_to_gamecreation": "Opening admin tools...",
                     "transfer_to_GamesQA": "Returning to main assistant...",
+                    "transfer_to_gamesqa": "Returning to main assistant...",
                   };
                   const message = friendlyMap[toolName] || "Thinking...";
+                  lastToolFriendlyMessage = message;
+                  lastToolName = toolName;
                   sendEvent({ type: "thinking", message });
+
+                  // For pure handoff tools (e.g., transfer_to_commerce) the current behavior
+                  // is that the swarm does not always emit a final natural-language AI message.
+                  // To avoid leaving the frontend "stuck" waiting, we treat the handoff itself
+                  // as the terminal action and finish the stream early.
+                  if (toolName.startsWith("transfer_to_")) {
+                    logger.info("[chat] Handoff tool detected, finishing stream after thinking message", { toolName });
+                    break;
+                  }
                 }
               }
 
@@ -268,9 +295,20 @@ async function chat(req, res, next) {
             }
             streamTagFilter.flush();
 
-            const productIdsFromText = extractProductIdsFromText(answerContent);
+            let finalAnswer = answerContent;
+            // If the agent only called tools (e.g., transfer_to_commerce) and never
+            // produced natural language, avoid sending an empty bubble to the UI.
+            if (!finalAnswer.trim()) {
+              if (lastToolFriendlyMessage) {
+                finalAnswer = lastToolFriendlyMessage;
+              } else if (seenToolMessage) {
+                finalAnswer = "Done processing your request.";
+              }
+            }
+
+            const productIdsFromText = extractProductIdsFromText(finalAnswer);
             const productIds = [...new Set([...productIdsFromTools, ...productIdsFromText])];
-            const sanitizedMessage = sanitizeMessageForDisplay(answerContent);
+            const sanitizedMessage = sanitizeMessageForDisplay(finalAnswer);
             if (userId && threadId) {
               await chatMessageService.saveMessage(userId, threadId, "assistant", sanitizedMessage);
               chatThreadService.upsertThread(userId, threadId).catch(() => { });
